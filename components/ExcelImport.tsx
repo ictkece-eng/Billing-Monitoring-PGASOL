@@ -10,6 +10,50 @@ interface ExcelImportProps {
 const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * Fungsi untuk memformat nilai dari Excel menjadi string yang konsisten (DD-MM-YYYY).
+   * Menangani: Date Object, Excel Serial Number, dan Date Strings.
+   */
+  const formatExcelValue = (val: any): string => {
+    if (val === undefined || val === null || val === '') return '-';
+    
+    let dateObj: Date | null = null;
+
+    // 1. Jika sudah berupa Date object
+    if (val instanceof Date) {
+      dateObj = val;
+    } 
+    // 2. Jika berupa angka (Excel Serial Date)
+    else if (typeof val === 'number') {
+      // Excel epoch starts at Dec 30, 1899
+      dateObj = new Date(Math.round((val - 25569) * 86400 * 1000));
+    }
+    // 3. Jika berupa string yang berisi angka (Serial Date dalam bentuk string)
+    else if (typeof val === 'string' && /^\d+(\.\d+)?$/.test(val.trim())) {
+      const num = parseFloat(val);
+      if (num > 30000) { // Angka di atas 30rb biasanya adalah representasi tanggal Excel
+        dateObj = new Date(Math.round((num - 25569) * 86400 * 1000));
+      }
+    }
+    // 4. Jika berupa string tanggal umum (e.g. "2025-01-15" atau "01/15/2025")
+    else if (typeof val === 'string' && val.trim() !== '-') {
+      const parsed = Date.parse(val);
+      if (!isNaN(parsed)) {
+        dateObj = new Date(parsed);
+      }
+    }
+
+    // Jika berhasil dikonversi menjadi Date yang valid
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      const d = dateObj.getDate().toString().padStart(2, '0');
+      const m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+      const y = dateObj.getFullYear();
+      return `${d}-${m}-${y}`;
+    }
+
+    return String(val).trim();
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -18,7 +62,8 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        // Gunakan cellDates: false untuk mendapatkan nilai mentah, lalu diproses manual
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: false });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         
@@ -30,21 +75,36 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
         }
 
         const mappedData: BudgetRecord[] = jsonData.map((row, index) => {
+          // Normalisasi key agar case-insensitive dan tanpa spasi berlebih
           const normalizedRow: any = {};
           Object.keys(row).forEach(k => {
-            normalizedRow[k.toLowerCase().trim()] = row[k];
+            const cleanKey = k.toLowerCase().replace(/\s+/g, ' ').trim();
+            normalizedRow[cleanKey] = row[k];
           });
 
           const status = normalizedRow['status'] || 'On Progress';
           const namaUser = normalizedRow['nama user'] || normalizedRow['user'] || 'Unknown';
           const tim = normalizedRow['tim'] || normalizedRow['team'] || 'No Team';
-          const periode = normalizedRow['periode bulan'] || normalizedRow['periode'] || '-';
           
+          // Deteksi kolom Periode
+          const rawPeriode = normalizedRow['periode bulan'] || normalizedRow['periode'] || '-';
+          const periode = formatExcelValue(rawPeriode);
+
+          // Deteksi kolom Tgl BAST dengan berbagai variasi nama kolom yang mungkin
+          const rawBAST = 
+            normalizedRow['tgl bast-submit bast by ivend'] || 
+            normalizedRow['tgl bast'] || 
+            normalizedRow['tanggal bast'] || 
+            normalizedRow['tgl bast submit'] || 
+            '';
+          const tglBAST = formatExcelValue(rawBAST);
+          
+          // Proses Nilai Tagihan
           let nilaiTagihan = 0;
           const rawVal = normalizedRow['nilai tagihan'] || normalizedRow['nilai tagihan2'] || 0;
           
           if (typeof rawVal === 'string') {
-            const cleaned = rawVal.replace(/Rp/gi, '').replace(/[^0-9]/g, '');
+            const cleaned = rawVal.replace(/Rp/gi, '').replace(/[^0-9.]/g, '');
             nilaiTagihan = Number(cleaned);
           } else {
             nilaiTagihan = Number(rawVal);
@@ -57,15 +117,15 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
             status: status as BudgetRecord['status'],
             namaUser: String(namaUser).trim(),
             tim: String(tim).trim(),
-            periode: String(periode).trim(),
+            periode: periode,
             nilaiTagihan: isNaN(nilaiTagihan) ? 0 : nilaiTagihan,
             noRO: String(normalizedRow['no ro'] || ''),
-            tglBAST: String(normalizedRow['tgl bast-submit bast by ivend'] || ''),
-            noBAST: String(normalizedRow['no bast / id vendor'] || ''),
+            tglBAST: tglBAST,
+            noBAST: String(normalizedRow['no bast / id vendor'] || normalizedRow['no bast'] || ''),
             status2: String(status2).trim(),
             emailSoftCopy: String(normalizedRow['kirim email soft copy'] || ''),
             saNo: String(normalizedRow['sa no'] || ''),
-            tglKirimJKT: String(normalizedRow['tgl kirim ke jkt'] || ''),
+            tglKirimJKT: formatExcelValue(normalizedRow['tgl kirim ke jkt'] || ''),
             reviewerVendor: String(normalizedRow['reviewer i vendor'] || ''),
             keterangan: String(normalizedRow['keterangan2'] || normalizedRow['keterangan'] || ''),
           };
@@ -73,7 +133,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
 
         onImport(mappedData);
       } catch (err) {
-        console.error(err);
+        console.error("Excel Import Error:", err);
         alert("Gagal membaca file Excel. Pastikan format kolom sesuai.");
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = '';
