@@ -1,0 +1,5 @@
+{
+  "name": "Budget Monitoring Dashboard",
+  "description": "A comprehensive budget tracking application that converts raw financial data into interactive pivot tables and visual insights, designed for corporate budget management.",
+  "requestFramePermissions": []
+}
