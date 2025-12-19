@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { BudgetRecord } from './types';
-import { MOCK_DATA } from './constants';
+import { MOCK_DATA, STATUS_COLS } from './constants';
 import PivotTable from './components/PivotTable';
 import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
@@ -53,8 +53,39 @@ const App: React.FC = () => {
     filteredData.reduce((acc, curr) => acc + curr.nilaiTagihan, 0)
   , [filteredData]);
 
+  // Specific Status Totals for the Cards
+  const statusSummaries = useMemo(() => {
+    const summaries: Record<string, number> = {};
+    STATUS_COLS.forEach(status => {
+      summaries[status] = filteredData
+        .filter(item => item.status2 === status)
+        .reduce((sum, item) => sum + item.nilaiTagihan, 0);
+    });
+    return summaries;
+  }, [filteredData]);
+
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+
+  // Helper function for colorful card themes
+  const getStatusTheme = (status: string) => {
+    switch (status) {
+      case 'Invoice Internal': 
+        return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', bar: 'bg-blue-500', icon: 'text-blue-400' };
+      case 'po belum muncul': 
+        return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', bar: 'bg-amber-500', icon: 'text-amber-400' };
+      case 'REQ Reject by my ssc(PHR)': 
+        return { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', bar: 'bg-rose-500', icon: 'text-rose-400' };
+      case 'REQ SA': 
+        return { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', bar: 'bg-emerald-500', icon: 'text-emerald-400' };
+      case 'Review 1': 
+        return { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', bar: 'bg-violet-500', icon: 'text-violet-400' };
+      case 'VOW': 
+        return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', bar: 'bg-cyan-500', icon: 'text-cyan-400' };
+      default: 
+        return { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', bar: 'bg-slate-500', icon: 'text-slate-400' };
+    }
+  };
 
   const fetchAiInsight = async () => {
     if (filteredData.length === 0) {
@@ -176,88 +207,128 @@ const App: React.FC = () => {
                 <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                {searchQuery && (
-                  <button 
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
-                  >
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                  </button>
-                )}
               </div>
             </div>
           </div>
 
-          <div className="bg-blue-600 p-6 rounded-xl text-white shadow-lg shadow-blue-200 relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-xl text-white shadow-xl relative overflow-hidden group">
+            <div className="absolute -right-6 -bottom-6 opacity-20 group-hover:scale-110 transition-transform duration-500">
                 <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>
             </div>
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Total Tagihan {filterPeriode === 'All' ? 'Keseluruhan' : `Bulan ${filterPeriode}`}</p>
-            <h2 className="text-2xl font-black">{formatCurrency(totalValue)}</h2>
-            {searchQuery && <p className="text-[9px] mt-2 opacity-70">Menampilkan hasil pencarian "{searchQuery}"</p>}
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Grand Total Tagihan</p>
+            <h2 className="text-3xl font-black mb-1">{formatCurrency(totalValue)}</h2>
+            <div className="flex items-center gap-2 mt-2">
+                <span className="bg-white/20 text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">{filterPeriode}</span>
+                {searchQuery && <span className="text-[9px] opacity-70 italic truncate">Filtered by "{searchQuery}"</span>}
+            </div>
           </div>
 
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-            <div className="flex justify-between items-center mb-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Analyst Insight</p>
+            <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Financial Intelligence</p>
+                </div>
                 <button 
                   onClick={fetchAiInsight}
                   disabled={loadingInsight || data.length === 0}
                   className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 disabled:text-slate-300"
                 >
-                  {loadingInsight ? 'Memproses...' : 'Dapatkan Analisis'}
+                  {loadingInsight ? 'Analysing...' : 'Generate Insight'}
                 </button>
             </div>
-            <div className="text-xs text-slate-600 line-clamp-3">
-              {data.length === 0 ? "Impor data Excel untuk melihat analisis finansial." : (aiInsight || "Gunakan AI untuk menganalisis tren budget Anda.")}
+            <div className="text-[11px] leading-relaxed text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[50px] italic">
+              {data.length === 0 ? "Import data untuk analisis." : (aiInsight || "Klik tombol di atas untuk melihat analisis pengeluaran otomatis oleh AI.")}
             </div>
           </div>
         </div>
 
+        {/* Status Billing Summary Cards - COLORFUL VERSION */}
+        {data.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+            {STATUS_COLS.map((status) => {
+              const theme = getStatusTheme(status);
+              const percentage = totalValue > 0 ? (statusSummaries[status] / totalValue) * 100 : 0;
+              
+              return (
+                <div key={status} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
+                  {/* Subtle decorative circle */}
+                  <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
+                  
+                  <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={status}>
+                    {status}
+                  </p>
+                  <p className="text-base font-black text-slate-900 leading-none">
+                    {formatCurrency(statusSummaries[status] || 0)}
+                  </p>
+                  
+                  <div className="flex items-center justify-between mt-3">
+                    <span className={`text-[9px] font-bold ${theme.text} opacity-70`}>{percentage.toFixed(1)}% of total</span>
+                    <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5">
+                      <div 
+                        className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Dynamic Content */}
         {data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-slate-300 text-slate-400">
-            <div className="p-4 bg-slate-50 rounded-full mb-4">
-                <svg className="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
+            <div className="p-5 bg-slate-50 rounded-full mb-5">
+                <svg className="w-16 h-16 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
             </div>
-            <p className="text-lg font-bold text-slate-500">Aplikasi Monitor Budget Siap</p>
-            <p className="text-sm max-w-xs text-center mt-1">Silakan impor file Excel abang yang berisi kolom: Status, Nama User, Tim, Periode, dan Nilai Tagihan.</p>
+            <p className="text-xl font-bold text-slate-700">Aplikasi Monitor Budget Siap</p>
+            <p className="text-sm max-w-sm text-center mt-2 px-6">Unggah file Excel Anda yang berisi rekapitulasi budget untuk melihat visualisasi data otomatis dan analisis AI.</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {activeTab === 'pivot' && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                    Tabel Pivot Rekapitulasi
-                  </h3>
-                  <div className="text-[10px] text-slate-400 font-medium italic">Digabungkan per Tim & User</div>
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center justify-between mb-5 px-1">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-1">
+                      <div className="w-2 h-6 bg-blue-600 rounded-full"></div>
+                      Tabel Pivot Rekapitulasi
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Konsolidasi data berdasarkan Tim dan Pengguna</p>
+                  </div>
                 </div>
                 <PivotTable data={filteredData} />
               </div>
             )}
 
             {activeTab === 'raw' && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    Laporan Data Lengkap
-                  </h3>
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center justify-between mb-5 px-1">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-1">
+                      <div className="w-2 h-6 bg-emerald-500 rounded-full"></div>
+                      Database Transaksi Lengkap
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Data mentah dari impor sistem atau Excel</p>
+                  </div>
                 </div>
                 <DetailedDataTable data={filteredData} />
               </div>
             )}
 
             {activeTab === 'dashboard' && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
-                    Visualisasi & Analytics
-                </h3>
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="mb-6 px-1">
+                  <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-1">
+                    <div className="w-2 h-6 bg-indigo-500 rounded-full"></div>
+                    Insight & Visualisasi
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">Analisis grafis untuk pengambilan keputusan cepat</p>
+                </div>
                 <DashboardCharts data={filteredData} />
               </div>
             )}
@@ -266,9 +337,15 @@ const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-slate-200 mt-12">
+      <footer className="py-16 border-t border-slate-200 mt-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 text-center">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Budget Management System v3.0 • Developed for Corporate Efficiency</p>
+            <div className="inline-block bg-slate-100 px-4 py-1.5 rounded-full mb-4">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Budget Management System v3.0 Powered by Gemini
+                </p>
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium">© 2025 Corporate Asset Management. All rights reserved.</p>
         </div>
       </footer>
     </div>
