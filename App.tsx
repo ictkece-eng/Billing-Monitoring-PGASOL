@@ -69,24 +69,117 @@ const App: React.FC = () => {
     return Math.min((absorbedValue / contractValue) * 100, 100);
   }, [contractValue, absorbedValue]);
 
-  // Estimasi sisa bulan berdasarkan rata-rata serapan per periode (bulan) dari data yang sedang tampil
+  // Estimasi sisa bulan: dihitung dari data per bulan (periode) dan memperhitungkan bulan kosong (0)
   const monthlyRunRate = useMemo(() => {
-    // Group by "periode" as provided by the source data (assumed monthly label)
-    const totalsByPeriode = filteredData.reduce((acc, curr) => {
-      const key = (curr.periode || '-').trim();
-      if (!key || key === '-') return acc;
-      acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
+    const monthMap: Record<string, number> = {
+      jan: 1,
+      januari: 1,
+      feb: 2,
+      februari: 2,
+      mar: 3,
+      maret: 3,
+      apr: 4,
+      april: 4,
+      mei: 5,
+      may: 5,
+      jun: 6,
+      juni: 6,
+      jul: 7,
+      juli: 7,
+      agu: 8,
+      ags: 8,
+      agustus: 8,
+      aug: 8,
+      sep: 9,
+      september: 9,
+      okt: 10,
+      oktober: 10,
+      oct: 10,
+      nov: 11,
+      november: 11,
+      des: 12,
+      desember: 12,
+      dec: 12,
+    };
+
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const ymKey = (y: number, m: number) => `${y}-${pad2(m)}`;
+
+    const normalizePeriodeToYearMonth = (raw: string): { year: number; month: number; key: string } | null => {
+      const s = (raw || '').trim();
+      if (!s || s === '-') return null;
+
+      // 1) YYYY-MM / YYYY/MM / YYYY.MM
+      let m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*$/);
+      if (m) {
+        const year = Number(m[1]);
+        const month = Number(m[2]);
+        if (month >= 1 && month <= 12) return { year, month, key: ymKey(year, month) };
+      }
+
+      // 2) MM-YYYY / MM/YYYY
+      m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{4})\s*$/);
+      if (m) {
+        const month = Number(m[1]);
+        const year = Number(m[2]);
+        if (month >= 1 && month <= 12) return { year, month, key: ymKey(year, month) };
+      }
+
+      // 3) "MMM YYYY" / "MMMM YYYY" / "MMM-YY"
+      const cleaned = s
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/_/g, ' ');
+
+      m = cleaned.match(/^\s*([a-z]+)\s*[-\s]\s*(\d{2}|\d{4})\s*$/);
+      if (m) {
+        const monToken = m[1];
+        const month = monthMap[monToken];
+        if (!month) return null;
+        const yRaw = m[2];
+        let year = Number(yRaw);
+        if (yRaw.length === 2) {
+          // asumsi tahun 20xx untuk data modern
+          year = 2000 + year;
+        }
+        return { year, month, key: ymKey(year, month) };
+      }
+
+      return null;
+    };
+
+    // aggregate by normalized Year-Month
+    const totalsByYM = filteredData.reduce((acc, curr) => {
+      const parsed = normalizePeriodeToYearMonth(curr.periode);
+      if (!parsed) return acc;
+      acc[parsed.key] = (acc[parsed.key] || 0) + curr.nilaiTagihan;
       return acc;
     }, {} as Record<string, number>);
 
-    const periodes = Object.keys(totalsByPeriode);
-    const monthsCount = periodes.length;
-    const sum = periodes.reduce((s, p) => s + (totalsByPeriode[p] || 0), 0);
+    const keys = Object.keys(totalsByYM).sort();
+    const monthsWithData = keys.length;
+    const sum = keys.reduce((s, k) => s + (totalsByYM[k] || 0), 0);
 
-    const avg = monthsCount > 0 ? sum / monthsCount : 0;
+    if (monthsWithData === 0) {
+      return {
+        monthsCount: 0,
+        monthsWithData: 0,
+        averagePerMonth: 0,
+        mode: 'unparseable' as const,
+      };
+    }
+
+    // compute full month range between min & max and include missing months as 0
+    const [minY, minM] = keys[0].split('-').map(Number);
+    const [maxY, maxM] = keys[keys.length - 1].split('-').map(Number);
+    const totalMonthsInRange = (maxY - minY) * 12 + (maxM - minM) + 1;
+    const avg = totalMonthsInRange > 0 ? sum / totalMonthsInRange : 0;
+
     return {
-      monthsCount,
+      monthsCount: totalMonthsInRange,
+      monthsWithData,
       averagePerMonth: avg,
+      mode: 'range' as const,
     };
   }, [filteredData]);
 
@@ -324,7 +417,9 @@ const App: React.FC = () => {
                         : `≈ ${estimatedMonthsRemaining.toFixed(1)} bln`}
                     </p>
                     <p className="text-[11px] text-indigo-900/70 font-medium mt-1">
-                      Avg {formatCurrency(monthlyRunRate.averagePerMonth)}/bln{monthlyRunRate.monthsCount > 0 ? ` (${monthlyRunRate.monthsCount} periode)` : ''}
+                      {monthlyRunRate.mode === 'unparseable'
+                        ? 'Periode belum terbaca sebagai bulan'
+                        : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
                     </p>
                   </div>
                 </div>
