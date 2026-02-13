@@ -11,5 +11,8 @@ export const STATUS_COLS = [
   'VOW'
 ];
 
+// Nilai awal kontrak (Total Anggaran)
+export const CONTRACT_VALUE_IDR = 185_068_724_480;
+
 // Data dikosongkan agar user bisa memulai dengan data bersih dari impor Excel
 export const MOCK_DATA: BudgetRecord[] = [];
