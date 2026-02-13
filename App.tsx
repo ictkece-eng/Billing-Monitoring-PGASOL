@@ -9,6 +9,108 @@ import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
 import { getBudgetInsights } from './services/geminiService';
 
+type PeriodeOption = { value: string; label: string };
+
+const MONTH_TOKEN_MAP: Record<string, number> = {
+  jan: 1,
+  januari: 1,
+  feb: 2,
+  februari: 2,
+  mar: 3,
+  maret: 3,
+  apr: 4,
+  april: 4,
+  mei: 5,
+  may: 5,
+  jun: 6,
+  juni: 6,
+  jul: 7,
+  juli: 7,
+  agu: 8,
+  ags: 8,
+  agustus: 8,
+  aug: 8,
+  sep: 9,
+  september: 9,
+  okt: 10,
+  oktober: 10,
+  oct: 10,
+  nov: 11,
+  november: 11,
+  des: 12,
+  desember: 12,
+  dec: 12,
+};
+
+const toYearMonthKey = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`;
+
+const normalizePeriodeToYearMonthKey = (raw?: string): string | null => {
+  const s = (raw || '').trim();
+  if (!s || s === '-') return null;
+
+  // YYYY-MM / YYYY/MM / YYYY.MM
+  let m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // MM-YYYY / MM/YYYY / MM.YYYY
+  m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{4})\s*$/);
+  if (m) {
+    const month = Number(m[1]);
+    const year = Number(m[2]);
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // MM-YY / MM/YY
+  m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{2})\s*$/);
+  if (m) {
+    const month = Number(m[1]);
+    const year2 = Number(m[2]);
+    const year = 2000 + year2;
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  const cleaned = s
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/_/g, ' ');
+
+  // "MMM YYYY" / "MMMM YYYY" / "MMM-YY" / "MMM-YYYY"
+  m = cleaned.match(/^\s*([a-z]+)\s*[-\s]\s*(\d{2}|\d{4})\s*$/);
+  if (m) {
+    const monToken = m[1];
+    const month = MONTH_TOKEN_MAP[monToken];
+    if (!month) return null;
+    const yRaw = m[2];
+    let year = Number(yRaw);
+    if (yRaw.length === 2) year = 2000 + year;
+    return toYearMonthKey(year, month);
+  }
+
+  // "YYYY MMM" / "YYYY MMMM"
+  m = cleaned.match(/^\s*(\d{4})\s*[-\s]\s*([a-z]+)\s*$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = MONTH_TOKEN_MAP[m[2]];
+    if (!month) return null;
+    return toYearMonthKey(year, month);
+  }
+
+  return null;
+};
+
+const formatYearMonthKeyToLabel = (key: string) => {
+  const m = key.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return key;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || month < 1 || month > 12) return key;
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+};
+
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [filterPeriode, setFilterPeriode] = useState<string>('All');
@@ -18,10 +120,21 @@ const App: React.FC = () => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
 
-  const periodes = useMemo(() => {
-    if (data.length === 0) return ['All'];
-    const p = Array.from(new Set(data.map(d => d.periode))).filter(p => p !== '-').sort();
-    return ['All', ...p];
+  const periodes = useMemo<PeriodeOption[]>(() => {
+    if (data.length === 0) return [{ value: 'All', label: 'All' }];
+
+    const keys = Array.from(
+      new Set(
+        data
+          .map(d => normalizePeriodeToYearMonthKey(d.periode))
+          .filter((k): k is string => Boolean(k))
+      )
+    ).sort();
+
+    return [
+      { value: 'All', label: 'All' },
+      ...keys.map(k => ({ value: k, label: formatYearMonthKeyToLabel(k) })),
+    ];
   }, [data]);
 
   const filteredData = useMemo(() => {
@@ -29,7 +142,7 @@ const App: React.FC = () => {
     
     // Period Filtering
     if (filterPeriode !== 'All') {
-      result = result.filter(d => d.periode === filterPeriode);
+      result = result.filter(d => normalizePeriodeToYearMonthKey(d.periode) === filterPeriode);
     }
 
     // Search Query Filtering
@@ -71,88 +184,11 @@ const App: React.FC = () => {
 
   // Estimasi sisa bulan: dihitung dari data per bulan (periode) dan memperhitungkan bulan kosong (0)
   const monthlyRunRate = useMemo(() => {
-    const monthMap: Record<string, number> = {
-      jan: 1,
-      januari: 1,
-      feb: 2,
-      februari: 2,
-      mar: 3,
-      maret: 3,
-      apr: 4,
-      april: 4,
-      mei: 5,
-      may: 5,
-      jun: 6,
-      juni: 6,
-      jul: 7,
-      juli: 7,
-      agu: 8,
-      ags: 8,
-      agustus: 8,
-      aug: 8,
-      sep: 9,
-      september: 9,
-      okt: 10,
-      oktober: 10,
-      oct: 10,
-      nov: 11,
-      november: 11,
-      des: 12,
-      desember: 12,
-      dec: 12,
-    };
-
-    const pad2 = (n: number) => String(n).padStart(2, '0');
-    const ymKey = (y: number, m: number) => `${y}-${pad2(m)}`;
-
-    const normalizePeriodeToYearMonth = (raw: string): { year: number; month: number; key: string } | null => {
-      const s = (raw || '').trim();
-      if (!s || s === '-') return null;
-
-      // 1) YYYY-MM / YYYY/MM / YYYY.MM
-      let m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*$/);
-      if (m) {
-        const year = Number(m[1]);
-        const month = Number(m[2]);
-        if (month >= 1 && month <= 12) return { year, month, key: ymKey(year, month) };
-      }
-
-      // 2) MM-YYYY / MM/YYYY
-      m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{4})\s*$/);
-      if (m) {
-        const month = Number(m[1]);
-        const year = Number(m[2]);
-        if (month >= 1 && month <= 12) return { year, month, key: ymKey(year, month) };
-      }
-
-      // 3) "MMM YYYY" / "MMMM YYYY" / "MMM-YY"
-      const cleaned = s
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-        .replace(/_/g, ' ');
-
-      m = cleaned.match(/^\s*([a-z]+)\s*[-\s]\s*(\d{2}|\d{4})\s*$/);
-      if (m) {
-        const monToken = m[1];
-        const month = monthMap[monToken];
-        if (!month) return null;
-        const yRaw = m[2];
-        let year = Number(yRaw);
-        if (yRaw.length === 2) {
-          // asumsi tahun 20xx untuk data modern
-          year = 2000 + year;
-        }
-        return { year, month, key: ymKey(year, month) };
-      }
-
-      return null;
-    };
-
     // aggregate by normalized Year-Month
     const totalsByYM = filteredData.reduce((acc, curr) => {
-      const parsed = normalizePeriodeToYearMonth(curr.periode);
-      if (!parsed) return acc;
-      acc[parsed.key] = (acc[parsed.key] || 0) + curr.nilaiTagihan;
+      const key = normalizePeriodeToYearMonthKey(curr.periode);
+      if (!key) return acc;
+      acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
       return acc;
     }, {} as Record<string, number>);
 
@@ -327,7 +363,7 @@ const App: React.FC = () => {
                 className="w-full bg-slate-50 border-slate-200 rounded-lg text-sm font-medium focus:ring-blue-500 focus:border-blue-500 p-2"
               >
                 {periodes.map(p => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
             </div>
@@ -355,7 +391,9 @@ const App: React.FC = () => {
             <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Grand Total Tagihan</p>
             <h2 className="text-3xl font-black mb-1">{formatCurrency(totalValue)}</h2>
             <div className="flex items-center gap-2 mt-2">
-                <span className="bg-white/20 text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">{filterPeriode}</span>
+                <span className="bg-white/20 text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
+                  {filterPeriode === 'All' ? 'All' : formatYearMonthKeyToLabel(filterPeriode)}
+                </span>
                 {searchQuery && <span className="text-[9px] opacity-70 italic truncate">Filtered by "{searchQuery}"</span>}
             </div>
           </div>
@@ -389,7 +427,7 @@ const App: React.FC = () => {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
                   <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1">{formatCurrency(contractValue)}</h2>
                   <p className="text-xs text-slate-500 font-medium mt-1">
-                    Analisis berdasarkan data yang sedang tampil ({filterPeriode}{searchQuery ? `, query: \"${searchQuery}\"` : ''}).
+                    Analisis berdasarkan data yang sedang tampil ({filterPeriode === 'All' ? 'All' : formatYearMonthKeyToLabel(filterPeriode)}{searchQuery ? `, query: \"${searchQuery}\"` : ''}).
                   </p>
                 </div>
 
