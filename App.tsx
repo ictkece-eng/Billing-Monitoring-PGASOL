@@ -11,6 +11,9 @@ import { getBudgetInsights } from './services/geminiService';
 
 type PeriodeOption = { value: string; label: string };
 
+const ALL_PERIODE_VALUE = 'All';
+const ALL_PERIODE_LABEL = 'Semua Periode';
+
 const MONTH_TOKEN_MAP: Record<string, number> = {
   jan: 1,
   januari: 1,
@@ -113,7 +116,7 @@ const formatYearMonthKeyToLabel = (key: string) => {
 
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
-  const [filterPeriode, setFilterPeriode] = useState<string>('All');
+  const [filterPeriode, setFilterPeriode] = useState<string>(ALL_PERIODE_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'pivot' | 'dashboard' | 'raw'>('pivot');
   const [isInputOpen, setIsInputOpen] = useState(false);
@@ -121,7 +124,7 @@ const App: React.FC = () => {
   const [loadingInsight, setLoadingInsight] = useState(false);
 
   const periodes = useMemo<PeriodeOption[]>(() => {
-    if (data.length === 0) return [{ value: 'All', label: 'All' }];
+    if (data.length === 0) return [{ value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL }];
 
     const keys = Array.from(
       new Set(
@@ -132,16 +135,23 @@ const App: React.FC = () => {
     ).sort();
 
     return [
-      { value: 'All', label: 'All' },
+      { value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL },
       ...keys.map(k => ({ value: k, label: formatYearMonthKeyToLabel(k) })),
     ];
   }, [data]);
+
+  // Keep selected periode valid (avoids messy/blank select labels if underlying options change)
+  useEffect(() => {
+    if (filterPeriode === ALL_PERIODE_VALUE) return;
+    const exists = periodes.some(p => p.value === filterPeriode);
+    if (!exists) setFilterPeriode(ALL_PERIODE_VALUE);
+  }, [filterPeriode, periodes]);
 
   const filteredData = useMemo(() => {
     let result = data;
     
     // Period Filtering
-    if (filterPeriode !== 'All') {
+    if (filterPeriode !== ALL_PERIODE_VALUE) {
       result = result.filter(d => normalizePeriodeToYearMonthKey(d.periode) === filterPeriode);
     }
 
@@ -357,15 +367,25 @@ const App: React.FC = () => {
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Filter Periode</label>
-              <select
-                value={filterPeriode}
-                onChange={(e) => setFilterPeriode(e.target.value)}
-                className="w-full bg-slate-50 border-slate-200 rounded-lg text-sm font-medium focus:ring-blue-500 focus:border-blue-500 p-2"
-              >
-                {periodes.map(p => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={filterPeriode}
+                  onChange={(e) => setFilterPeriode(e.target.value)}
+                  className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-blue-500 focus:border-blue-500 p-2 pr-9"
+                >
+                  {periodes.map(p => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+                <svg
+                  className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pencarian Cepat</label>
@@ -392,7 +412,7 @@ const App: React.FC = () => {
             <h2 className="text-3xl font-black mb-1">{formatCurrency(totalValue)}</h2>
             <div className="flex items-center gap-2 mt-2">
                 <span className="bg-white/20 text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
-                  {filterPeriode === 'All' ? 'All' : formatYearMonthKeyToLabel(filterPeriode)}
+                  {filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}
                 </span>
                 {searchQuery && <span className="text-[9px] opacity-70 italic truncate">Filtered by "{searchQuery}"</span>}
             </div>
@@ -427,7 +447,7 @@ const App: React.FC = () => {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
                   <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1">{formatCurrency(contractValue)}</h2>
                   <p className="text-xs text-slate-500 font-medium mt-1">
-                    Analisis berdasarkan data yang sedang tampil ({filterPeriode === 'All' ? 'All' : formatYearMonthKeyToLabel(filterPeriode)}{searchQuery ? `, query: \"${searchQuery}\"` : ''}).
+                    Analisis berdasarkan data yang sedang tampil ({filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}{searchQuery ? `, query: \"${searchQuery}\"` : ''}).
                   </p>
                 </div>
 
