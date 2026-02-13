@@ -51,8 +51,27 @@ const normalizePeriodeToYearMonthKey = (raw?: string): string | null => {
   const s = (raw || '').trim();
   if (!s || s === '-') return null;
 
+  // DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY (format produced by ExcelImport for dates)
+  // Treat as a month bucket (ignore day)
+  let m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{2}|\d{4})\s*$/);
+  if (m) {
+    const month = Number(m[2]);
+    const yRaw = m[3];
+    let year = Number(yRaw);
+    if (yRaw.length === 2) year = 2000 + year;
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+  m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
   // YYYY-MM / YYYY/MM / YYYY.MM
-  let m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*$/);
+  m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*$/);
   if (m) {
     const year = Number(m[1]);
     const month = Number(m[2]);
