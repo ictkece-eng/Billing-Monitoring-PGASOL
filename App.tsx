@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { BudgetRecord } from './types';
-import { MOCK_DATA, STATUS_COLS } from './constants';
+import { CONTRACT_VALUE_IDR, MOCK_DATA, STATUS_COLS } from './constants';
 import PivotTable from './components/PivotTable';
 import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
@@ -52,6 +52,22 @@ const App: React.FC = () => {
   const totalValue = useMemo(() => 
     filteredData.reduce((acc, curr) => acc + curr.nilaiTagihan, 0)
   , [filteredData]);
+
+  // Anggaran Kontrak (Nilai Awal) + Analisis Serapan
+  const contractValue = CONTRACT_VALUE_IDR;
+  const absorbedValue = totalValue;
+  const remainingValue = useMemo(
+    () => Math.max(contractValue - absorbedValue, 0),
+    [contractValue, absorbedValue]
+  );
+  const overBudgetValue = useMemo(
+    () => Math.max(absorbedValue - contractValue, 0),
+    [contractValue, absorbedValue]
+  );
+  const absorbedPct = useMemo(() => {
+    if (contractValue <= 0) return 0;
+    return Math.min((absorbedValue / contractValue) * 100, 100);
+  }, [contractValue, absorbedValue]);
 
   // Specific Status Totals for the Cards
   const statusSummaries = useMemo(() => {
@@ -239,6 +255,54 @@ const App: React.FC = () => {
             </div>
             <div className="text-[11px] leading-relaxed text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[50px] italic">
               {data.length === 0 ? "Import data untuk analisis." : (aiInsight || "Klik tombol di atas untuk melihat analisis pengeluaran otomatis oleh AI.")}
+            </div>
+          </div>
+        </div>
+
+        {/* Contract Budget Card */}
+        <div className="mb-10">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1">{formatCurrency(contractValue)}</h2>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Analisis berdasarkan data yang sedang tampil ({filterPeriode}{searchQuery ? `, query: \"${searchQuery}\"` : ''}).
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
+                    <p className="text-lg font-black text-slate-900 mt-1">{formatCurrency(absorbedValue)}</p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1">{absorbedPct.toFixed(1)}% dari kontrak</p>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
+                    <p className="text-lg font-black text-emerald-900 mt-1">{formatCurrency(remainingValue)}</p>
+                    <p className="text-[11px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
+                  </div>
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                    <p className="text-[10px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
+                    <p className="text-lg font-black text-rose-900 mt-1">{formatCurrency(overBudgetValue)}</p>
+                    <p className="text-[11px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progress serapan</span>
+                  <span className="text-[10px] font-bold text-slate-600">{absorbedPct.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-700"
+                    style={{ width: `${absorbedPct}%` }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
