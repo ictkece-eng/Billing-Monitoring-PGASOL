@@ -69,6 +69,34 @@ const App: React.FC = () => {
     return Math.min((absorbedValue / contractValue) * 100, 100);
   }, [contractValue, absorbedValue]);
 
+  // Estimasi sisa bulan berdasarkan rata-rata serapan per periode (bulan) dari data yang sedang tampil
+  const monthlyRunRate = useMemo(() => {
+    // Group by "periode" as provided by the source data (assumed monthly label)
+    const totalsByPeriode = filteredData.reduce((acc, curr) => {
+      const key = (curr.periode || '-').trim();
+      if (!key || key === '-') return acc;
+      acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const periodes = Object.keys(totalsByPeriode);
+    const monthsCount = periodes.length;
+    const sum = periodes.reduce((s, p) => s + (totalsByPeriode[p] || 0), 0);
+
+    const avg = monthsCount > 0 ? sum / monthsCount : 0;
+    return {
+      monthsCount,
+      averagePerMonth: avg,
+    };
+  }, [filteredData]);
+
+  const estimatedMonthsRemaining = useMemo(() => {
+    if (overBudgetValue > 0) return 0;
+    const avg = monthlyRunRate.averagePerMonth;
+    if (avg <= 0) return null;
+    return remainingValue / avg;
+  }, [monthlyRunRate.averagePerMonth, remainingValue, overBudgetValue]);
+
   // Specific Status Totals for the Cards
   const statusSummaries = useMemo(() => {
     const summaries: Record<string, number> = {};
@@ -272,7 +300,7 @@ const App: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full md:w-auto">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
                     <p className="text-lg font-black text-slate-900 mt-1">{formatCurrency(absorbedValue)}</p>
@@ -287,6 +315,17 @@ const App: React.FC = () => {
                     <p className="text-[10px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
                     <p className="text-lg font-black text-rose-900 mt-1">{formatCurrency(overBudgetValue)}</p>
                     <p className="text-[11px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                    <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Estimasi Sisa</p>
+                    <p className="text-lg font-black text-indigo-900 mt-1">
+                      {estimatedMonthsRemaining === null
+                        ? '—'
+                        : `≈ ${estimatedMonthsRemaining.toFixed(1)} bln`}
+                    </p>
+                    <p className="text-[11px] text-indigo-900/70 font-medium mt-1">
+                      Avg {formatCurrency(monthlyRunRate.averagePerMonth)}/bln{monthlyRunRate.monthsCount > 0 ? ` (${monthlyRunRate.monthsCount} periode)` : ''}
+                    </p>
                   </div>
                 </div>
               </div>
