@@ -195,26 +195,46 @@ const App: React.FC = () => {
     filteredData.reduce((acc, curr) => acc + curr.nilaiTagihan, 0)
   , [filteredData]);
 
+  // Total serapan dari seluruh data (untuk perbandingan dengan nilai kontrak awal)
+  const totalAbsorbedAll = useMemo(() => 
+    data.reduce((acc, curr) => acc + curr.nilaiTagihan, 0)
+  , [data]);
+
   // Anggaran Kontrak (Nilai Awal) + Analisis Serapan
   const contractValue = CONTRACT_VALUE_IDR;
-  const absorbedValue = totalValue;
+  // IMPORTANT: gunakan seluruh data agar sisa anggaran & estimasi tidak berubah saat filter periode/search
+  const absorbedValue = totalAbsorbedAll;
+  // Snapshot berdasarkan filter yang sedang aktif (untuk perbandingan)
+  const absorbedValueFiltered = totalValue;
   const remainingValue = useMemo(
     () => Math.max(contractValue - absorbedValue, 0),
     [contractValue, absorbedValue]
+  );
+  const remainingValueFiltered = useMemo(
+    () => Math.max(contractValue - absorbedValueFiltered, 0),
+    [contractValue, absorbedValueFiltered]
   );
   const overBudgetValue = useMemo(
     () => Math.max(absorbedValue - contractValue, 0),
     [contractValue, absorbedValue]
   );
+  const overBudgetValueFiltered = useMemo(
+    () => Math.max(absorbedValueFiltered - contractValue, 0),
+    [contractValue, absorbedValueFiltered]
+  );
   const absorbedPct = useMemo(() => {
     if (contractValue <= 0) return 0;
     return Math.min((absorbedValue / contractValue) * 100, 100);
   }, [contractValue, absorbedValue]);
+  const absorbedPctFiltered = useMemo(() => {
+    if (contractValue <= 0) return 0;
+    return Math.min((absorbedValueFiltered / contractValue) * 100, 100);
+  }, [contractValue, absorbedValueFiltered]);
 
   // Estimasi sisa bulan: dihitung dari data per bulan (periode) dan memperhitungkan bulan kosong (0)
   const monthlyRunRate = useMemo(() => {
     // aggregate by normalized Year-Month
-    const totalsByYM = filteredData.reduce((acc, curr) => {
+    const totalsByYM = data.reduce((acc, curr) => {
       const key = normalizePeriodeToYearMonthKey(curr.periode);
       if (!key) return acc;
       acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
@@ -246,6 +266,40 @@ const App: React.FC = () => {
       averagePerMonth: avg,
       mode: 'range' as const,
     };
+  }, [data]);
+
+  const monthlyRunRateFiltered = useMemo(() => {
+    const totalsByYM = filteredData.reduce((acc, curr) => {
+      const key = normalizePeriodeToYearMonthKey(curr.periode);
+      if (!key) return acc;
+      acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const keys = Object.keys(totalsByYM).sort();
+    const monthsWithData = keys.length;
+    const sum = keys.reduce((s, k) => s + (totalsByYM[k] || 0), 0);
+
+    if (monthsWithData === 0) {
+      return {
+        monthsCount: 0,
+        monthsWithData: 0,
+        averagePerMonth: 0,
+        mode: 'unparseable' as const,
+      };
+    }
+
+    const [minY, minM] = keys[0].split('-').map(Number);
+    const [maxY, maxM] = keys[keys.length - 1].split('-').map(Number);
+    const totalMonthsInRange = (maxY - minY) * 12 + (maxM - minM) + 1;
+    const avg = totalMonthsInRange > 0 ? sum / totalMonthsInRange : 0;
+
+    return {
+      monthsCount: totalMonthsInRange,
+      monthsWithData,
+      averagePerMonth: avg,
+      mode: 'range' as const,
+    };
   }, [filteredData]);
 
   const estimatedMonthsRemaining = useMemo(() => {
@@ -254,6 +308,13 @@ const App: React.FC = () => {
     if (avg <= 0) return null;
     return remainingValue / avg;
   }, [monthlyRunRate.averagePerMonth, remainingValue, overBudgetValue]);
+
+  const estimatedMonthsRemainingFiltered = useMemo(() => {
+    if (overBudgetValueFiltered > 0) return 0;
+    const avg = monthlyRunRateFiltered.averagePerMonth;
+    if (avg <= 0) return null;
+    return remainingValueFiltered / avg;
+  }, [monthlyRunRateFiltered.averagePerMonth, remainingValueFiltered, overBudgetValueFiltered]);
 
   // Specific Status Totals for the Cards
   const statusSummaries = useMemo(() => {
@@ -466,7 +527,7 @@ const App: React.FC = () => {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
                   <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1">{formatCurrency(contractValue)}</h2>
                   <p className="text-xs text-slate-500 font-medium mt-1">
-                    Analisis berdasarkan data yang sedang tampil ({filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}{searchQuery ? `, query: \"${searchQuery}\"` : ''}).
+                    Angka utama dihitung dari <span className="font-semibold">seluruh data</span> (nilai kontrak awal). Baris kecil menunjukkan snapshot sesuai filter periode/pencarian.
                   </p>
                 </div>
 
@@ -475,16 +536,25 @@ const App: React.FC = () => {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
                     <p className="text-lg font-black text-slate-900 mt-1">{formatCurrency(absorbedValue)}</p>
                     <p className="text-[11px] text-slate-500 font-medium mt-1">{absorbedPct.toFixed(1)}% dari kontrak</p>
+                    <p className="text-[11px] text-slate-500/80 mt-1">
+                      Filtered: <span className="font-semibold">{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
+                    </p>
                   </div>
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                     <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
                     <p className="text-lg font-black text-emerald-900 mt-1">{formatCurrency(remainingValue)}</p>
                     <p className="text-[11px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
+                    <p className="text-[11px] text-emerald-900/70 mt-1">
+                      Filtered: <span className="font-semibold">{formatCurrency(remainingValueFiltered)}</span>
+                    </p>
                   </div>
                   <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
                     <p className="text-[10px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
                     <p className="text-lg font-black text-rose-900 mt-1">{formatCurrency(overBudgetValue)}</p>
                     <p className="text-[11px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
+                    <p className="text-[11px] text-rose-900/70 mt-1">
+                      Filtered: <span className="font-semibold">{formatCurrency(overBudgetValueFiltered)}</span>
+                    </p>
                   </div>
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
                     <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Estimasi Sisa</p>
@@ -497,6 +567,16 @@ const App: React.FC = () => {
                       {monthlyRunRate.mode === 'unparseable'
                         ? 'Periode belum terbaca sebagai bulan'
                         : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
+                    </p>
+                    <p className="text-[11px] text-indigo-900/70 mt-1">
+                      Filtered: {
+                        estimatedMonthsRemainingFiltered === null
+                          ? '—'
+                          : `≈ ${estimatedMonthsRemainingFiltered.toFixed(1)} bln`
+                      }
+                      {monthlyRunRateFiltered.mode === 'range' && monthlyRunRateFiltered.averagePerMonth > 0
+                        ? ` • Avg ${formatCurrency(monthlyRunRateFiltered.averagePerMonth)}/bln`
+                        : ''}
                     </p>
                   </div>
                 </div>
