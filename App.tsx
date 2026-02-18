@@ -327,7 +327,7 @@ const App: React.FC = () => {
   const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
 
   // Canonicalize status2 so cards match Excel/pivot columns consistently.
-  // - Treat blanks/placeholders as manual
+  // - Keep blanks/placeholders as a dedicated bucket (NOT manual) so counts match the source file
   // - Map case-insensitively to STATUS_COLS
   // - Normalize internal whitespace to avoid accidental splitting (e.g., double spaces)
   const normalizeStatus2Text = (raw: unknown) =>
@@ -342,8 +342,10 @@ const App: React.FC = () => {
     const key = s.toLowerCase();
 
     if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') {
-      return 'manual';
+      return 'Status2 Kosong';
     }
+
+    if (key === 'manual') return 'manual';
 
     const canonical = STATUS_COLS.find(col => normalizeStatus2Text(col).toLowerCase() === key);
     return canonical || s;
@@ -390,7 +392,7 @@ const App: React.FC = () => {
   }, [totalValue, status2CardsTotal]);
 
   const rowsWithBlankStatus2 = useMemo(() => {
-    // Note: blanks are intentionally bucketed into "manual".
+    // Note: blanks/placeholders are bucketed into "Status2 Kosong".
     let c = 0;
     for (const r of filteredData) {
       if (!String(r.status2 ?? '').trim()) c++;
@@ -486,6 +488,22 @@ const App: React.FC = () => {
     return parts.join('|');
   };
 
+  // Ultra-loose fingerprint: excludes nilaiTagihan and status2.
+  // Used ONLY to safely repair status2 buckets without adding duplicates.
+  const getRecordUltraLooseFingerprint = (r: BudgetRecord) => {
+    const parts = [
+      (r.namaUser || '').trim().toLowerCase(),
+      (r.tim || '').trim().toLowerCase(),
+      (r.periode || '').trim().toLowerCase(),
+      (r.noRO || '').trim().toLowerCase(),
+      (r.tglBAST || '').trim().toLowerCase(),
+      (r.noBAST || '').trim().toLowerCase(),
+      (r.saNo || '').trim().toLowerCase(),
+      (r.keterangan || '').trim().toLowerCase(),
+    ];
+    return parts.join('|');
+  };
+
   const shouldRepairAmount = (oldVal: unknown, newVal: unknown) => {
     const oldN = safeAmount(oldVal);
     const newN = safeAmount(newVal);
@@ -499,6 +517,16 @@ const App: React.FC = () => {
       return true;
     }
     return false;
+  };
+
+  const shouldRepairStatus2 = (oldStatus2: unknown, newStatus2: unknown) => {
+    const oldC = canonicalizeStatus2(oldStatus2);
+    const newC = canonicalizeStatus2(newStatus2);
+    if (oldC === newC) return false;
+
+    // Only allow safe repairs between Manual and Status2 Kosong.
+    const pair = new Set([oldC, newC]);
+    return pair.has('manual') && pair.has('Status2 Kosong');
   };
 
   // Helper function for colorful card themes
@@ -579,12 +607,25 @@ const App: React.FC = () => {
         }
       });
 
+      const ultraLooseIndex = new Map<string, { idx: number; count: number }>();
+      prev.forEach((row, idx) => {
+        const k = getRecordUltraLooseFingerprint(row);
+        const found = ultraLooseIndex.get(k);
+        if (!found) {
+          ultraLooseIndex.set(k, { idx, count: 1 });
+        } else {
+          ultraLooseIndex.set(k, { idx: found.idx, count: found.count + 1 });
+        }
+      });
+
       let skipped = 0;
       let repaired = 0;
+      let repairedStatus2 = 0;
 
       const toAdd: BudgetRecord[] = [];
       const skippedRows: BudgetRecord[] = [];
       const repairedRows: Array<{ idx: number; oldValue: number; newValue: number; status2Key: string }> = [];
+      const repairedStatus2Rows: Array<{ idx: number; newStatus2: string }> = [];
       for (const row of importedData) {
         const fp = getRecordFingerprint(row);
         if (existing.has(fp)) {
@@ -607,6 +648,18 @@ const App: React.FC = () => {
             continue;
           }
         }
+
+        // Status2 repair (e.g., previously-blank status2 forced into manual) without duplicating rows.
+        const ultraFp = getRecordUltraLooseFingerprint(row);
+        const ui = ultraLooseIndex.get(ultraFp);
+        if (ui && ui.count === 1) {
+          const prevRow = prev[ui.idx];
+          if (prevRow && shouldRepairStatus2(prevRow.status2, row.status2)) {
+            repairedStatus2++;
+            repairedStatus2Rows.push({ idx: ui.idx, newStatus2: canonicalizeStatus2(row.status2) });
+            continue;
+          }
+        }
         toAdd.push(row);
       }
 
@@ -625,6 +678,16 @@ const App: React.FC = () => {
         }
         nextData = copy;
       }
+
+      if (repairedStatus2Rows.length > 0) {
+        const copy = [...nextData];
+        for (const rr of repairedStatus2Rows) {
+          const existingRow = copy[rr.idx];
+          if (!existingRow) continue;
+          copy[rr.idx] = { ...existingRow, status2: rr.newStatus2 };
+        }
+        nextData = copy;
+      }
       nextData = [...nextData, ...toAdd];
       const nextSums = sumByStatus2Key(nextData);
 
@@ -638,6 +701,12 @@ const App: React.FC = () => {
       const manualSkipped = skippedSums['manual'] || 0;
       const manualTotalAfter = nextSums['manual'] || 0;
 
+      const kosongKey = normalizeStatus2Key('Status2 Kosong');
+      const kosongFile = fileSums[kosongKey] || 0;
+      const kosongAdded = addedSums[kosongKey] || 0;
+      const kosongSkipped = skippedSums[kosongKey] || 0;
+      const kosongTotalAfter = nextSums[kosongKey] || 0;
+
       const manualRepairedDelta = repairedRows
         .filter(r => r.status2Key === 'manual')
         .reduce((acc, r) => acc + (r.newValue - r.oldValue), 0);
@@ -645,13 +714,18 @@ const App: React.FC = () => {
       // Feedback after state update (async safe)
       queueMicrotask(() => {
         alert(
-          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}. Diperbaiki: ${repaired}.\n\n` +
+          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}. Diperbaiki nilai: ${repaired}. Perbaiki status2: ${repairedStatus2}.\n\n` +
           `Cek SUM status2=manual (berdasarkan kartu):\n` +
           `• SUM manual (file): ${formatCurrency(manualFile)}\n` +
           `• SUM manual (ditambahkan): ${formatCurrency(manualAdded)}\n` +
           `• SUM manual (duplikat dilewati): ${formatCurrency(manualSkipped)}\n\n` +
           `• Delta manual (perbaikan data lama): ${formatCurrency(manualRepairedDelta)}\n` +
           `• SUM manual (total data setelah merge): ${formatCurrency(manualTotalAfter)}\n\n` +
+          `Cek SUM status2=Status2 Kosong (berdasarkan kartu):\n` +
+          `• SUM kosong (file): ${formatCurrency(kosongFile)}\n` +
+          `• SUM kosong (ditambahkan): ${formatCurrency(kosongAdded)}\n` +
+          `• SUM kosong (duplikat dilewati): ${formatCurrency(kosongSkipped)}\n` +
+          `• SUM kosong (total data setelah merge): ${formatCurrency(kosongTotalAfter)}\n\n` +
           `Total nilai (file): ${formatCurrency(fileTotal)}\n\n` +
           `Top status2 (file):\n${formatTopStatus2Lines(fileSums, fileCounts, fileLabels)}`
         );
@@ -926,7 +1000,7 @@ const App: React.FC = () => {
                   >
                     Validasi: Σ kartu = {formatCurrency(status2CardsTotal)} · Grand Total = {formatCurrency(totalValue)}
                     {Math.abs(status2CardsDiff) === 0 ? '' : ` · Selisih: ${formatCurrency(status2CardsDiff)}`}
-                    {rowsWithBlankStatus2 > 0 ? ` · Blank status2 → manual: ${rowsWithBlankStatus2} baris` : ''}
+                    {rowsWithBlankStatus2 > 0 ? ` · Blank status2 → Status2 Kosong: ${rowsWithBlankStatus2} baris` : ''}
                   </div>
                 </div>
 
