@@ -2,6 +2,7 @@
 import React, { useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { BudgetRecord } from '../types';
+import { STATUS_COLS } from '../constants';
 
 interface ExcelImportProps {
   onImport: (data: BudgetRecord[]) => void;
@@ -9,6 +10,22 @@ interface ExcelImportProps {
 
 const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
+
+  const canonicalizeStatus2 = (raw: any): string => {
+    const s = String(raw ?? '').trim();
+    const key = normalizeStatus2Key(s);
+
+    // Treat empty and common placeholders as manual
+    if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') {
+      return 'manual';
+    }
+
+    // Map case-insensitively to known pivot columns
+    const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
+    return canonical || s;
+  };
 
   /**
    * Parse currency/number strings into an integer amount (IDR).
@@ -193,7 +210,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
             noRO: String(normalizedRow['no ro'] || ''),
             tglBAST: tglBAST,
             noBAST: String(normalizedRow['no bast / id vendor'] || normalizedRow['no bast'] || ''),
-            status2: String(status2).trim(),
+            status2: canonicalizeStatus2(status2),
             emailSoftCopy: String(normalizedRow['kirim email soft copy'] || ''),
             saNo: String(normalizedRow['sa no'] || ''),
             tglKirimJKT: formatExcelValue(normalizedRow['tgl kirim ke jkt'] || ''),
