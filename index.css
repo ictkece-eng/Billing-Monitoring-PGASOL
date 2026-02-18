@@ -87,6 +87,21 @@ html {
   z-index: 5;
 }
 
+/* Second header row (filters) should also stay sticky beneath the header */
+.table-modern thead .table-filter-row th {
+  position: sticky;
+  top: 32px; /* approximate height of the first header row */
+  z-index: 4;
+  background: #f8f9fa;
+  padding: 6px 4px;
+}
+
+.table-modern thead .table-filter-row .form-control,
+.table-modern thead .table-filter-row .form-select {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
 .table-modern td,
 .table-modern th {
   line-height: 1.25;
