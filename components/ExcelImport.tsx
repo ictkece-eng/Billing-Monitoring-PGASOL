@@ -14,13 +14,16 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
 
   const canonicalizeStatus2 = (raw: any): string => {
-    const s = String(raw ?? '').trim();
+    const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
     const key = normalizeStatus2Key(s);
 
-    // Treat empty and common placeholders as manual
+    // Keep blanks/placeholders as their own bucket (NOT manual) so counts match the source file.
     if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') {
-      return 'manual';
+      return 'Status2 Kosong';
     }
+
+    // Normalize explicit manual
+    if (key === 'manual') return 'manual';
 
     // Map case-insensitively to known pivot columns
     const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
