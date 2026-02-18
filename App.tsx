@@ -316,17 +316,35 @@ const App: React.FC = () => {
     return remainingValueFiltered / avg;
   }, [monthlyRunRateFiltered.averagePerMonth, remainingValueFiltered, overBudgetValueFiltered]);
 
-  // Specific Status Totals for the Cards
-  const statusSummaries = useMemo(() => {
-    const norm = (s: string | undefined | null) => (s || '').trim().toLowerCase();
-    const summaries: Record<string, number> = {};
-    STATUS_COLS.forEach(status => {
-      summaries[status] = filteredData
-        .filter(item => norm(item.status2) === norm(status))
-        .reduce((sum, item) => sum + item.nilaiTagihan, 0);
-    });
-    return summaries;
+  const normalizeStatus2 = (s: string | undefined | null) => (s || '').trim();
+  const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
+
+  // Build status2 list dynamically (one card per unique status2 in the current filtered view)
+  const status2CardList = useMemo(() => {
+    const map = new Map<string, string>(); // key -> display label
+    for (const item of filteredData) {
+      const raw = normalizeStatus2(item.status2);
+      const key = normalizeStatus2Key(raw) || 'manual';
+      const label = raw || 'manual';
+      if (!map.has(key)) map.set(key, label);
+    }
+    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
   }, [filteredData]);
+
+  // Totals per status2 (dynamic)
+  const status2Summaries = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const item of filteredData) {
+      const key = normalizeStatus2Key(item.status2) || 'manual';
+      totals[key] = (totals[key] || 0) + item.nilaiTagihan;
+    }
+    return totals;
+  }, [filteredData]);
+
+  // Sort cards by total (desc) so the most important statuses show first
+  const sortedStatus2Cards = useMemo(() => {
+    return [...status2CardList].sort((a, b) => (status2Summaries[b.key] || 0) - (status2Summaries[a.key] || 0));
+  }, [status2CardList, status2Summaries]);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
@@ -641,20 +659,21 @@ const App: React.FC = () => {
         {/* Status Billing Summary Cards - COLORFUL VERSION */}
         {data.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-            {STATUS_COLS.map((status) => {
-              const theme = getStatusTheme(status);
-              const percentage = totalValue > 0 ? (statusSummaries[status] / totalValue) * 100 : 0;
+            {sortedStatus2Cards.map(({ key, label }) => {
+              const theme = getStatusTheme(label);
+              const value = status2Summaries[key] || 0;
+              const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
               
               return (
-                <div key={status} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
+                <div key={key} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
                   {/* Subtle decorative circle */}
                   <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
                   
-                  <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={status}>
-                    {status}
+                  <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
+                    {label}
                   </p>
-                  <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(statusSummaries[status] || 0)}>
-                    {formatCurrency(statusSummaries[status] || 0)}
+                  <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
+                    {formatCurrency(value)}
                   </p>
                   
                   <div className="flex items-center justify-between mt-3">
