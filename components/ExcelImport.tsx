@@ -11,6 +11,27 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
+   * Parse currency/number strings into an integer amount (IDR).
+   * Handles common Excel exports such as:
+   * - "Rp 65.934.189.945"
+   * - "65.934.189.945"
+   * - "65,934,189,945"
+   * - "65934189945"
+   * NOTE: The app treats nilaiTagihan as an integer (no cents).
+   */
+  const parseIdrInteger = (val: any): number => {
+    if (val === undefined || val === null || val === '') return 0;
+    if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+
+    const s = String(val);
+    // Keep digits only (removes Rp, spaces, thousand separators '.', ',' etc.)
+    const digits = s.replace(/\D/g, '');
+    if (!digits) return 0;
+    const n = Number(digits);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  /**
    * Fungsi untuk memformat nilai dari Excel menjadi string yang konsisten (DD-MM-YYYY).
    * Menangani: Date Object, Excel Serial Number, dan Date Strings.
    */
@@ -102,13 +123,8 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
           // Proses Nilai Tagihan
           let nilaiTagihan = 0;
           const rawVal = normalizedRow['nilai tagihan'] || normalizedRow['nilai tagihan2'] || 0;
-          
-          if (typeof rawVal === 'string') {
-            const cleaned = rawVal.replace(/Rp/gi, '').replace(/[^0-9.]/g, '');
-            nilaiTagihan = Number(cleaned);
-          } else {
-            nilaiTagihan = Number(rawVal);
-          }
+
+          nilaiTagihan = parseIdrInteger(rawVal);
 
           const status2 = normalizedRow['status2'] || normalizedRow['status billing'] || 'manual';
 
@@ -118,7 +134,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
             namaUser: String(namaUser).trim(),
             tim: String(tim).trim(),
             periode: periode,
-            nilaiTagihan: isNaN(nilaiTagihan) ? 0 : nilaiTagihan,
+            nilaiTagihan,
             noRO: String(normalizedRow['no ro'] || ''),
             tglBAST: tglBAST,
             noBAST: String(normalizedRow['no bast / id vendor'] || normalizedRow['no bast'] || ''),
