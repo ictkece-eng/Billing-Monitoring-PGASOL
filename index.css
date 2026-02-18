@@ -1,0 +1,17 @@
+/*
+  Minimal global utilities.
+  This file is referenced by index.html ("/index.css").
+*/
+
+/* Prevent long numbers (e.g., currency) from overflowing cards on narrow screens */
+.safe-number {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Slightly tighter line-height for large numeric headings (optional helper) */
+.safe-number-tight {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.1;
+}
