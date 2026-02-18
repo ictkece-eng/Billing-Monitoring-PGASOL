@@ -531,32 +531,32 @@ const App: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-2 xl:grid-cols-4">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
                     <p className="text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
                     <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
                     <p className="text-[12px] text-slate-500/80 mt-2 pt-2 border-t border-slate-200/60">
-                      Filtered: <span className="font-semibold safe-number" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
+                      Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
                     </p>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
                     <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
                     <p className="text-xl font-black text-emerald-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
                     <p className="text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
                     <p className="text-[12px] text-emerald-900/70 mt-2 pt-2 border-t border-emerald-200/70">
-                      Filtered: <span className="font-semibold safe-number" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
+                      Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
                     </p>
                   </div>
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
                     <p className="text-[11px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
                     <p className="text-xl font-black text-rose-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
                     <p className="text-[12px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
                     <p className="text-[12px] text-rose-900/70 mt-2 pt-2 border-t border-rose-200/70">
-                      Filtered: <span className="font-semibold safe-number" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
+                      Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
                     </p>
                   </div>
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
                     <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">Estimasi Sisa</p>
                     <p className="text-xl font-black text-indigo-900 mt-1 tabular-nums tracking-tight">
                       {estimatedMonthsRemaining === null
