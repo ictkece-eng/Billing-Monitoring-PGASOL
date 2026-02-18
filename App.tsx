@@ -144,6 +144,9 @@ const App: React.FC = () => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
 
+  // Guard: keep all aggregations consistent even if some rows contain non-finite numbers (NaN/Infinity).
+  const safeAmount = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+
   const periodes = useMemo<PeriodeOption[]>(() => {
     if (data.length === 0) return [{ value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL }];
 
@@ -193,14 +196,16 @@ const App: React.FC = () => {
     return result;
   }, [data, filterPeriode, searchQuery]);
 
-  const totalValue = useMemo(() => 
-    filteredData.reduce((acc, curr) => acc + curr.nilaiTagihan, 0)
-  , [filteredData]);
+  const totalValue = useMemo(
+    () => filteredData.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
+    [filteredData]
+  );
 
   // Total serapan dari seluruh data (untuk perbandingan dengan nilai kontrak awal)
-  const totalAbsorbedAll = useMemo(() => 
-    data.reduce((acc, curr) => acc + curr.nilaiTagihan, 0)
-  , [data]);
+  const totalAbsorbedAll = useMemo(
+    () => data.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
+    [data]
+  );
 
   // Anggaran Kontrak (Nilai Awal) + Analisis Serapan
   const contractValue = CONTRACT_VALUE_IDR;
@@ -239,7 +244,7 @@ const App: React.FC = () => {
     const totalsByYM = data.reduce((acc, curr) => {
       const key = normalizePeriodeToYearMonthKey(curr.periode);
       if (!key) return acc;
-      acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
+      acc[key] = (acc[key] || 0) + safeAmount(curr.nilaiTagihan);
       return acc;
     }, {} as Record<string, number>);
 
@@ -274,7 +279,7 @@ const App: React.FC = () => {
     const totalsByYM = filteredData.reduce((acc, curr) => {
       const key = normalizePeriodeToYearMonthKey(curr.periode);
       if (!key) return acc;
-      acc[key] = (acc[key] || 0) + curr.nilaiTagihan;
+      acc[key] = (acc[key] || 0) + safeAmount(curr.nilaiTagihan);
       return acc;
     }, {} as Record<string, number>);
 
@@ -339,7 +344,7 @@ const App: React.FC = () => {
     for (const item of filteredData) {
       const key = normalizeStatus2Key(item.status2) || 'manual';
       if (!stats[key]) stats[key] = { sum: 0, count: 0 };
-      stats[key].sum += item.nilaiTagihan;
+      stats[key].sum += safeAmount(item.nilaiTagihan);
       stats[key].count += 1;
     }
     return stats;
@@ -357,7 +362,7 @@ const App: React.FC = () => {
     const sums: Record<string, number> = {};
     for (const r of rows) {
       const key = normalizeStatus2Key(r.status2) || 'manual';
-      sums[key] = (sums[key] || 0) + (r.nilaiTagihan || 0);
+      sums[key] = (sums[key] || 0) + safeAmount(r.nilaiTagihan);
     }
     return sums;
   };
@@ -508,7 +513,7 @@ const App: React.FC = () => {
       const fileCounts = countByStatus2Key(importedData);
       const fileLabels = labelByStatus2Key(importedData);
 
-      const fileTotal = importedData.reduce((acc, r) => acc + (r.nilaiTagihan || 0), 0);
+      const fileTotal = importedData.reduce((acc, r) => acc + safeAmount(r.nilaiTagihan), 0);
 
       const manualFile = fileSums['manual'] || 0;
       const manualAdded = addedSums['manual'] || 0;
