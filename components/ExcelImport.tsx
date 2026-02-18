@@ -23,12 +23,28 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
     if (val === undefined || val === null || val === '') return 0;
     if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
 
-    const s = String(val);
-    // Keep digits only (removes Rp, spaces, thousand separators '.', ',' etc.)
-    const digits = s.replace(/\D/g, '');
+    const raw = String(val).trim();
+    if (!raw) return 0;
+
+    // 1) Scientific notation (Excel sometimes renders big numbers like 1.2345E+11)
+    // Keep only number-related chars then parse.
+    if (/[eE]/.test(raw)) {
+      const sci = raw
+        .replace(/Rp/gi, '')
+        .replace(/\s+/g, '')
+        .replace(/[^0-9eE+\-\.]/g, '');
+      const nSci = Number(sci);
+      if (Number.isFinite(nSci)) return Math.trunc(nSci);
+    }
+
+    // 2) Normal currency/number strings: remove everything except digits, keep sign if present.
+    // This handles: "Rp 65.934.189.945" / "65,934,189,945" etc.
+    const isNegative = /^\s*-/.test(raw);
+    const digits = raw.replace(/\D/g, '');
     if (!digits) return 0;
     const n = Number(digits);
-    return Number.isFinite(n) ? n : 0;
+    if (!Number.isFinite(n)) return 0;
+    return isNegative ? -n : n;
   };
 
   /**
