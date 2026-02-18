@@ -121,9 +121,31 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
             normalizedRow[cleanKey] = row[k];
           });
 
-          const status = normalizedRow['status'] || 'On Progress';
-          const namaUser = normalizedRow['nama user'] || normalizedRow['user'] || 'Unknown';
-          const tim = normalizedRow['tim'] || normalizedRow['team'] || 'No Team';
+          // Index tambahan untuk mengatasi variasi header Excel seperti:
+          // - "Status 2" vs "Status2"
+          // - "Nilai Tagihan (Rp)" / "Nilai Tagihan Rp" / "Nilai Tagihan"
+          // Kunci dibuat lebih "kompak" (hapus spasi) dan "alnum" (hapus non [a-z0-9]).
+          const keyIndex: Record<string, any> = {};
+          for (const k of Object.keys(normalizedRow)) {
+            const v = normalizedRow[k];
+            const compact = k.replace(/\s+/g, '');
+            const alnum = k.replace(/[^a-z0-9]/g, '');
+            if (!(compact in keyIndex)) keyIndex[compact] = v;
+            if (!(alnum in keyIndex)) keyIndex[alnum] = v;
+          }
+
+          const findByPrefix = (prefix: string) => {
+            // Cari keyIndex yang dimulai prefix (mis: "nilaitagihan" -> "nilaitagihanrp")
+            const keys = Object.keys(keyIndex);
+            for (const kk of keys) {
+              if (kk.startsWith(prefix)) return keyIndex[kk];
+            }
+            return undefined;
+          };
+
+          const status = normalizedRow['status'] || keyIndex['status'] || 'On Progress';
+          const namaUser = normalizedRow['nama user'] || normalizedRow['user'] || keyIndex['namauser'] || keyIndex['user'] || 'Unknown';
+          const tim = normalizedRow['tim'] || normalizedRow['team'] || keyIndex['tim'] || keyIndex['team'] || 'No Team';
           
           // Deteksi kolom Periode
           const rawPeriode = normalizedRow['periode bulan'] || normalizedRow['periode'] || '-';
@@ -140,11 +162,26 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
           
           // Proses Nilai Tagihan
           let nilaiTagihan = 0;
-          const rawVal = normalizedRow['nilai tagihan'] || normalizedRow['nilai tagihan2'] || 0;
+          const rawVal =
+            normalizedRow['nilai tagihan'] ||
+            normalizedRow['nilai tagihan2'] ||
+            keyIndex['nilaitagihan'] ||
+            keyIndex['nilaitagihan2'] ||
+            findByPrefix('nilaitagihan') ||
+            0;
 
           nilaiTagihan = parseIdrInteger(rawVal);
 
-          const status2 = normalizedRow['status2'] || normalizedRow['status billing'] || 'manual';
+          const status2 =
+            normalizedRow['status2'] ||
+            normalizedRow['status 2'] ||
+            normalizedRow['status billing'] ||
+            keyIndex['status2'] ||
+            keyIndex['statusbilling'] ||
+            keyIndex['statusbilling2'] ||
+            findByPrefix('status2') ||
+            findByPrefix('statusbilling') ||
+            'manual';
 
           return {
             id: `excel-${Date.now()}-${index}`,
