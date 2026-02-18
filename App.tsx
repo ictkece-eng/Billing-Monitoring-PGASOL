@@ -531,8 +531,8 @@ const App: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full md:w-auto">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full md:w-auto sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
                     <p className="text-xl font-black text-slate-900 mt-1 safe-number" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
                     <p className="text-[12px] text-slate-500 font-medium mt-1">{absorbedPct.toFixed(1)}% dari kontrak</p>
@@ -540,7 +540,7 @@ const App: React.FC = () => {
                       Filtered: <span className="font-semibold safe-number" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
                     </p>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
                     <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
                     <p className="text-xl font-black text-emerald-900 mt-1 safe-number" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
                     <p className="text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
@@ -548,7 +548,7 @@ const App: React.FC = () => {
                       Filtered: <span className="font-semibold safe-number" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
                     </p>
                   </div>
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-5">
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
                     <p className="text-[11px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
                     <p className="text-xl font-black text-rose-900 mt-1 safe-number" title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
                     <p className="text-[12px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
@@ -556,7 +556,7 @@ const App: React.FC = () => {
                       Filtered: <span className="font-semibold safe-number" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
                     </p>
                   </div>
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
                     <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">Estimasi Sisa</p>
                     <p className="text-xl font-black text-indigo-900 mt-1">
                       {estimatedMonthsRemaining === null
