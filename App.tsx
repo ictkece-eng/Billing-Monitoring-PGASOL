@@ -318,10 +318,11 @@ const App: React.FC = () => {
 
   // Specific Status Totals for the Cards
   const statusSummaries = useMemo(() => {
+    const norm = (s: string | undefined | null) => (s || '').trim().toLowerCase();
     const summaries: Record<string, number> = {};
     STATUS_COLS.forEach(status => {
       summaries[status] = filteredData
-        .filter(item => item.status2 === status)
+        .filter(item => norm(item.status2) === norm(status))
         .reduce((sum, item) => sum + item.nilaiTagihan, 0);
     });
     return summaries;
