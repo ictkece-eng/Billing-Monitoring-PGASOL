@@ -26,8 +26,15 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
     if (key === 'manual') return 'manual';
 
     // Map case-insensitively to known pivot columns
-    const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
-    return canonical || s;
+    const canonicalExact = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
+    if (canonicalExact) return canonicalExact;
+
+    // Collapse variants with appended notes: if it starts with a canonical label.
+    const canonicalPrefix = STATUS_COLS.find(col => {
+      const ck = normalizeStatus2Key(col);
+      return ck && key.startsWith(ck);
+    });
+    return canonicalPrefix || s;
   };
 
   /**
