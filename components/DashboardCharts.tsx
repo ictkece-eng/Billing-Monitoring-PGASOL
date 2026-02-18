@@ -17,8 +17,13 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
     const key = normalizeStatus2Key(s);
     if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') return 'Status2 Kosong';
     if (key === 'manual') return 'manual';
-    const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
-    return canonical || s;
+    const canonicalExact = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
+    if (canonicalExact) return canonicalExact;
+    const canonicalPrefix = STATUS_COLS.find(col => {
+      const ck = normalizeStatus2Key(col);
+      return ck && key.startsWith(ck);
+    });
+    return canonicalPrefix || s;
   };
 
   // Fix: Explicitly cast the value to number to avoid arithmetic operation errors in TypeScript during sort
