@@ -426,6 +426,38 @@ const App: React.FC = () => {
     return parts.join('|');
   };
 
+  // A looser fingerprint (excludes nilaiTagihan) for safe repair when previous imports had parsing issues.
+  // This helps avoid adding duplicates when the same transaction is re-imported but the amount is corrected.
+  const getRecordLooseFingerprint = (r: BudgetRecord) => {
+    const parts = [
+      (r.namaUser || '').trim().toLowerCase(),
+      (r.tim || '').trim().toLowerCase(),
+      (r.periode || '').trim().toLowerCase(),
+      (r.noRO || '').trim().toLowerCase(),
+      (r.tglBAST || '').trim().toLowerCase(),
+      (r.noBAST || '').trim().toLowerCase(),
+      (r.status2 || '').trim().toLowerCase(),
+      (r.saNo || '').trim().toLowerCase(),
+      (r.keterangan || '').trim().toLowerCase(),
+    ];
+    return parts.join('|');
+  };
+
+  const shouldRepairAmount = (oldVal: unknown, newVal: unknown) => {
+    const oldN = safeAmount(oldVal);
+    const newN = safeAmount(newVal);
+    if (newN <= 0) return false;
+    if (oldN === newN) return false;
+
+    // Common parse bug patterns: decimal being treated as extra zeros (x10/x100/x1000) or amount parsed as 0.
+    if (oldN === 0 && newN > 0) return true;
+    const ratio = oldN / newN;
+    if (Number.isFinite(ratio) && Number.isInteger(ratio) && (ratio === 10 || ratio === 100 || ratio === 1000)) {
+      return true;
+    }
+    return false;
+  };
+
   // Helper function for colorful card themes
   const getStatusTheme = (status: string) => {
     const palette = [
@@ -492,16 +524,45 @@ const App: React.FC = () => {
       // This ensures totals match the Excel file on first import, even if the file itself
       // contains duplicate rows (those duplicates will still be imported).
       const existing = new Set(prev.map(getRecordFingerprint));
+
+      const looseIndex = new Map<string, { idx: number; count: number }>();
+      prev.forEach((row, idx) => {
+        const k = getRecordLooseFingerprint(row);
+        const found = looseIndex.get(k);
+        if (!found) {
+          looseIndex.set(k, { idx, count: 1 });
+        } else {
+          looseIndex.set(k, { idx: found.idx, count: found.count + 1 });
+        }
+      });
+
       let skipped = 0;
+      let repaired = 0;
 
       const toAdd: BudgetRecord[] = [];
       const skippedRows: BudgetRecord[] = [];
+      const repairedRows: Array<{ idx: number; oldValue: number; newValue: number; status2Key: string }> = [];
       for (const row of importedData) {
         const fp = getRecordFingerprint(row);
         if (existing.has(fp)) {
           skipped++;
           skippedRows.push(row);
           continue;
+        }
+
+        const looseFp = getRecordLooseFingerprint(row);
+        const li = looseIndex.get(looseFp);
+        if (li && li.count === 1) {
+          const prevRow = prev[li.idx];
+          if (prevRow && shouldRepairAmount(prevRow.nilaiTagihan, row.nilaiTagihan)) {
+            repaired++;
+            const oldValue = safeAmount(prevRow.nilaiTagihan);
+            const newValue = safeAmount(row.nilaiTagihan);
+            const status2Key = normalizeStatus2Key(prevRow.status2) || 'manual';
+            repairedRows.push({ idx: li.idx, oldValue, newValue, status2Key });
+            // Keep existing strict fingerprint in the set; we are updating amount in place.
+            continue;
+          }
         }
         toAdd.push(row);
       }
@@ -510,7 +571,18 @@ const App: React.FC = () => {
       const addedSums = sumByStatus2Key(toAdd);
       const skippedSums = sumByStatus2Key(skippedRows);
 
-      const nextData = [...prev, ...toAdd];
+      // Apply repairs (if any)
+      let nextData = prev;
+      if (repairedRows.length > 0) {
+        const copy = [...prev];
+        for (const rr of repairedRows) {
+          const existingRow = copy[rr.idx];
+          if (!existingRow) continue;
+          copy[rr.idx] = { ...existingRow, nilaiTagihan: rr.newValue };
+        }
+        nextData = copy;
+      }
+      nextData = [...nextData, ...toAdd];
       const nextSums = sumByStatus2Key(nextData);
 
       const fileCounts = countByStatus2Key(importedData);
@@ -523,14 +595,19 @@ const App: React.FC = () => {
       const manualSkipped = skippedSums['manual'] || 0;
       const manualTotalAfter = nextSums['manual'] || 0;
 
+      const manualRepairedDelta = repairedRows
+        .filter(r => r.status2Key === 'manual')
+        .reduce((acc, r) => acc + (r.newValue - r.oldValue), 0);
+
       // Feedback after state update (async safe)
       queueMicrotask(() => {
         alert(
-          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}.\n\n` +
+          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}. Diperbaiki: ${repaired}.\n\n` +
           `Cek SUM status2=manual (berdasarkan kartu):\n` +
           `• SUM manual (file): ${formatCurrency(manualFile)}\n` +
           `• SUM manual (ditambahkan): ${formatCurrency(manualAdded)}\n` +
           `• SUM manual (duplikat dilewati): ${formatCurrency(manualSkipped)}\n\n` +
+          `• Delta manual (perbaikan data lama): ${formatCurrency(manualRepairedDelta)}\n` +
           `• SUM manual (total data setelah merge): ${formatCurrency(manualTotalAfter)}\n\n` +
           `Total nilai (file): ${formatCurrency(fileTotal)}\n\n` +
           `Top status2 (file):\n${formatTopStatus2Lines(fileSums, fileCounts, fileLabels)}`
