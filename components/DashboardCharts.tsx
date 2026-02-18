@@ -2,6 +2,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { BudgetRecord } from '../types';
+import { STATUS_COLS } from '../constants';
 
 interface ChartsProps {
   data: BudgetRecord[];
@@ -10,6 +11,15 @@ interface ChartsProps {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
+  const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
+  const canonicalizeStatus2 = (raw: any): string => {
+    const s = String(raw ?? '').trim();
+    const key = normalizeStatus2Key(s);
+    if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') return 'manual';
+    const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
+    return canonical || s;
+  };
+
   // Fix: Explicitly cast the value to number to avoid arithmetic operation errors in TypeScript during sort
   const teamSpending = Object.entries(
     data.reduce((acc, curr) => {
@@ -22,7 +32,8 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
   // Fix: Ensure values are treated as numbers for distribution calculation
   const statusDistribution = Object.entries(
     data.reduce((acc, curr) => {
-      acc[curr.status2] = (acc[curr.status2] || 0) + curr.nilaiTagihan;
+      const s2 = canonicalizeStatus2(curr.status2);
+      acc[s2] = (acc[s2] || 0) + curr.nilaiTagihan;
       return acc;
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value: value as number }));
