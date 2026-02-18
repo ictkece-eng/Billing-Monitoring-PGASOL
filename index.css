@@ -5,21 +5,49 @@
 
 /*
   Keep long numbers (e.g., currency) inside cards WITHOUT wrapping.
-  - Single line only
-  - Truncate with ellipsis when space is too narrow
+  Requirement:
+  - Single line only (no wrapping)
+  - No ellipsis (no "...")
+  - Full value should remain accessible/visible
+  Approach:
+  - Responsive font shrink on small screens
+  - If still too long, allow horizontal scroll within the line (no layout overflow)
 */
 .safe-number {
   display: block;
+  max-width: 100%;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.safe-number::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 /* Slightly tighter line-height for large numeric headings */
 .safe-number-tight {
   display: block;
+  max-width: 100%;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   line-height: 1.1;
+}
+.safe-number-tight::-webkit-scrollbar {
+  display: none;
+}
+
+/* Responsive font reduction to keep long currency strings visible */
+@media (max-width: 640px) {
+  .safe-number { font-size: 0.88em !important; }
+  .safe-number-tight { font-size: 0.90em !important; }
+}
+
+@media (max-width: 420px) {
+  .safe-number { font-size: 0.80em !important; }
+  .safe-number-tight { font-size: 0.82em !important; }
 }
