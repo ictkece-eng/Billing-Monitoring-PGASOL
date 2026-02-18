@@ -368,6 +368,28 @@ const App: React.FC = () => {
 
   // Helper function for colorful card themes
   const getStatusTheme = (status: string) => {
+    const palette = [
+      { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', bar: 'bg-blue-500', icon: 'text-blue-400' },
+      { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', bar: 'bg-emerald-500', icon: 'text-emerald-400' },
+      { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', bar: 'bg-amber-500', icon: 'text-amber-400' },
+      { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', bar: 'bg-rose-500', icon: 'text-rose-400' },
+      { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', bar: 'bg-violet-500', icon: 'text-violet-400' },
+      { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', bar: 'bg-cyan-500', icon: 'text-cyan-400' },
+      { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', text: 'text-fuchsia-700', bar: 'bg-fuchsia-500', icon: 'text-fuchsia-400' },
+      { bg: 'bg-lime-50', border: 'border-lime-200', text: 'text-lime-700', bar: 'bg-lime-500', icon: 'text-lime-500' },
+      { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', bar: 'bg-orange-500', icon: 'text-orange-400' },
+      { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', bar: 'bg-sky-500', icon: 'text-sky-400' },
+    ];
+
+    const pickFromPalette = (s: string) => {
+      const key = (s || '').trim().toLowerCase();
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+      }
+      return palette[hash % palette.length];
+    };
+
     switch (status) {
       case 'Invoice Internal': 
         return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', bar: 'bg-blue-500', icon: 'text-blue-400' };
@@ -382,7 +404,7 @@ const App: React.FC = () => {
       case 'VOW': 
         return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', bar: 'bg-cyan-500', icon: 'text-cyan-400' };
       default: 
-        return { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', bar: 'bg-slate-500', icon: 'text-slate-400' };
+        return pickFromPalette(status);
     }
   };
 
@@ -406,6 +428,9 @@ const App: React.FC = () => {
 
   const handleImportExcel = (importedData: BudgetRecord[]) => {
     setData(prev => {
+      // Only de-duplicate against data that already exists in state.
+      // This ensures totals match the Excel file on first import, even if the file itself
+      // contains duplicate rows (those duplicates will still be imported).
       const existing = new Set(prev.map(getRecordFingerprint));
       let skipped = 0;
 
@@ -416,7 +441,6 @@ const App: React.FC = () => {
           skipped++;
           continue;
         }
-        existing.add(fp);
         toAdd.push(row);
       }
 
