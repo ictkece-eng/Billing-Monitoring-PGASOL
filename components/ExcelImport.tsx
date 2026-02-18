@@ -45,6 +45,11 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
     const raw = String(val).trim();
     if (!raw) return 0;
 
+    // Parentheses are commonly used for negatives in accounting exports.
+    const isNegativeParen = /\(.*\)/.test(raw);
+    const isNegativeSign = /^\s*-/.test(raw);
+    const sign = isNegativeParen || isNegativeSign ? -1 : 1;
+
     // 1) Scientific notation (Excel sometimes renders big numbers like 1.2345E+11)
     // Keep only number-related chars then parse.
     if (/[eE]/.test(raw)) {
@@ -53,17 +58,91 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
         .replace(/\s+/g, '')
         .replace(/[^0-9eE+\-\.]/g, '');
       const nSci = Number(sci);
-      if (Number.isFinite(nSci)) return Math.trunc(nSci);
+      if (Number.isFinite(nSci)) return sign * Math.trunc(Math.abs(nSci));
     }
 
-    // 2) Normal currency/number strings: remove everything except digits, keep sign if present.
-    // This handles: "Rp 65.934.189.945" / "65,934,189,945" etc.
-    const isNegative = /^\s*-/.test(raw);
-    const digits = raw.replace(/\D/g, '');
+    // 2) Normal currency/number strings.
+    // Goal: parse integer IDR reliably from values like:
+    // - "Rp 1.234.567" 
+    // - "1.234.567,00" (ID format)
+    // - "1,234,567.00" (US format)
+    // - "1 234 567" 
+    // We drop fractional parts and keep only the integer portion.
+    let s = raw
+      .replace(/\(/g, '')
+      .replace(/\)/g, '')
+      .replace(/Rp/gi, '')
+      .replace(/IDR/gi, '')
+      .replace(/\s+/g, '')
+      .replace(/[^0-9,\.\-]/g, '');
+
+    // Remove leading sign (handled via `sign`).
+    s = s.replace(/^-/, '');
+
+    const hasDot = s.includes('.');
+    const hasComma = s.includes(',');
+
+    const stripNonDigits = (x: string) => x.replace(/\D/g, '');
+
+    if (hasDot && hasComma) {
+      // Decide decimal separator by the last occurrence.
+      const lastDot = s.lastIndexOf('.');
+      const lastComma = s.lastIndexOf(',');
+      if (lastComma > lastDot) {
+        // Likely ID: '.' thousands, ',' decimals
+        const intPart = s.slice(0, lastComma).replace(/\./g, '');
+        const digits = stripNonDigits(intPart);
+        if (!digits) return 0;
+        const n = Number(digits);
+        return Number.isFinite(n) ? sign * n : 0;
+      } else {
+        // Likely US: ',' thousands, '.' decimals
+        const intPart = s.slice(0, lastDot).replace(/,/g, '');
+        const digits = stripNonDigits(intPart);
+        if (!digits) return 0;
+        const n = Number(digits);
+        return Number.isFinite(n) ? sign * n : 0;
+      }
+    }
+
+    if (hasComma && !hasDot) {
+      // If comma looks like decimal separator (",00" / ",5"), drop fraction.
+      if (/,\d{1,2}$/.test(s)) {
+        const intPart = s.split(',')[0];
+        const digits = stripNonDigits(intPart);
+        if (!digits) return 0;
+        const n = Number(digits);
+        return Number.isFinite(n) ? sign * n : 0;
+      }
+      // Otherwise treat commas as thousands separators.
+      const digits = stripNonDigits(s.replace(/,/g, ''));
+      if (!digits) return 0;
+      const n = Number(digits);
+      return Number.isFinite(n) ? sign * n : 0;
+    }
+
+    if (hasDot && !hasComma) {
+      // If dot looks like decimal separator (".00" / ".5"), drop fraction.
+      if (/\.\d{1,2}$/.test(s)) {
+        const intPart = s.split('.')[0];
+        const digits = stripNonDigits(intPart);
+        if (!digits) return 0;
+        const n = Number(digits);
+        return Number.isFinite(n) ? sign * n : 0;
+      }
+      // Otherwise treat dots as thousands separators.
+      const digits = stripNonDigits(s.replace(/\./g, ''));
+      if (!digits) return 0;
+      const n = Number(digits);
+      return Number.isFinite(n) ? sign * n : 0;
+    }
+
+    // Plain digits
+    const digits = stripNonDigits(s);
     if (!digits) return 0;
     const n = Number(digits);
     if (!Number.isFinite(n)) return 0;
-    return isNegative ? -n : n;
+    return sign * n;
   };
 
   /**
