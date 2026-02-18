@@ -137,7 +137,8 @@ const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [filterPeriode, setFilterPeriode] = useState<string>(ALL_PERIODE_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'pivot' | 'dashboard' | 'raw'>('pivot');
+  const [activePage, setActivePage] = useState<'home' | 'pivot'>('home');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'raw'>('raw');
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
@@ -571,27 +572,40 @@ const App: React.FC = () => {
                   Tambah Data
                 </button>
               </div>
-              
+
+              {/* Menu: Pivot dibuat halaman/section tersendiri (tidak digabung di halaman utama) */}
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                 <button
-                  onClick={() => setActiveTab('pivot')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'pivot' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setActivePage('home')}
+                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'home' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  Tabel Pivot
+                  Beranda
                 </button>
                 <button
-                  onClick={() => setActiveTab('raw')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'raw' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setActivePage('pivot')}
+                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'pivot' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  Data Mentah
-                </button>
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  Visualisasi
+                  Pivot Rekap
                 </button>
               </div>
+
+              {/* Tabs khusus halaman utama */}
+              {activePage === 'home' && (
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setActiveTab('raw')}
+                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'raw' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Data Mentah
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Visualisasi
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -674,121 +688,125 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Contract Budget Card */}
-        <div className="mb-10">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6">
-              <div className="flex flex-col gap-5">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
-                  <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 safe-number-tight tabular-nums tracking-tight" title={formatCurrency(contractValue)}>{formatCurrency(contractValue)}</h2>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    Angka utama dihitung dari <span className="font-semibold">seluruh data</span> (nilai kontrak awal). Baris kecil menunjukkan snapshot sesuai filter periode/pencarian.
-                  </p>
-                </div>
+        {activePage === 'home' && (
+          <>
+            {/* Contract Budget Card */}
+            <div className="mb-10">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-6">
+                  <div className="flex flex-col gap-5">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
+                      <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 safe-number-tight tabular-nums tracking-tight" title={formatCurrency(contractValue)}>{formatCurrency(contractValue)}</h2>
+                      <p className="text-xs text-slate-500 font-medium mt-1">
+                        Angka utama dihitung dari <span className="font-semibold">seluruh data</span> (nilai kontrak awal). Baris kecil menunjukkan snapshot sesuai filter periode/pencarian.
+                      </p>
+                    </div>
 
-                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
-                    <p className="text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
-                    <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
-                    <p className="text-[12px] text-slate-500/80 mt-2 pt-2 border-t border-slate-200/60">
-                      Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
-                    </p>
+                    <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
+                        <p className="text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
+                        <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
+                        <p className="text-[12px] text-slate-500/80 mt-2 pt-2 border-t border-slate-200/60">
+                          Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
+                        </p>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                        <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
+                        <p className="text-xl font-black text-emerald-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
+                        <p className="text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
+                        <p className="text-[12px] text-emerald-900/70 mt-2 pt-2 border-t border-emerald-200/70">
+                          Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
+                        </p>
+                      </div>
+                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                        <p className="text-[11px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
+                        <p className="text-xl font-black text-rose-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
+                        <p className="text-[12px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
+                        <p className="text-[12px] text-rose-900/70 mt-2 pt-2 border-t border-rose-200/70">
+                          Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
+                        </p>
+                      </div>
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                        <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">Estimasi Sisa</p>
+                        <p className="text-xl font-black text-indigo-900 mt-1 tabular-nums tracking-tight">
+                          {estimatedMonthsRemaining === null
+                            ? '—'
+                            : `≈ ${estimatedMonthsRemaining.toFixed(1)} bln`}
+                        </p>
+                        <p className="text-[12px] text-indigo-900/70 font-medium mt-1 leading-snug">
+                          {monthlyRunRate.mode === 'unparseable'
+                            ? 'Periode belum terbaca sebagai bulan'
+                            : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
+                        </p>
+                        <p className="text-[12px] text-indigo-900/70 mt-2 pt-2 border-t border-indigo-200/70 leading-snug">
+                          Filtered: {
+                            estimatedMonthsRemainingFiltered === null
+                              ? '—'
+                              : `≈ ${estimatedMonthsRemainingFiltered.toFixed(1)} bln`
+                          }
+                          {monthlyRunRateFiltered.mode === 'range' && monthlyRunRateFiltered.averagePerMonth > 0
+                            ? ` • Avg ${formatCurrency(monthlyRunRateFiltered.averagePerMonth)}/bln`
+                            : ''}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
-                    <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
-                    <p className="text-xl font-black text-emerald-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
-                    <p className="text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
-                    <p className="text-[12px] text-emerald-900/70 mt-2 pt-2 border-t border-emerald-200/70">
-                      Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
-                    </p>
-                  </div>
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
-                    <p className="text-[11px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
-                    <p className="text-xl font-black text-rose-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
-                    <p className="text-[12px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
-                    <p className="text-[12px] text-rose-900/70 mt-2 pt-2 border-t border-rose-200/70">
-                      Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
-                    </p>
-                  </div>
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
-                    <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">Estimasi Sisa</p>
-                    <p className="text-xl font-black text-indigo-900 mt-1 tabular-nums tracking-tight">
-                      {estimatedMonthsRemaining === null
-                        ? '—'
-                        : `≈ ${estimatedMonthsRemaining.toFixed(1)} bln`}
-                    </p>
-                    <p className="text-[12px] text-indigo-900/70 font-medium mt-1 leading-snug">
-                      {monthlyRunRate.mode === 'unparseable'
-                        ? 'Periode belum terbaca sebagai bulan'
-                        : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
-                    </p>
-                    <p className="text-[12px] text-indigo-900/70 mt-2 pt-2 border-t border-indigo-200/70 leading-snug">
-                      Filtered: {
-                        estimatedMonthsRemainingFiltered === null
-                          ? '—'
-                          : `≈ ${estimatedMonthsRemainingFiltered.toFixed(1)} bln`
-                      }
-                      {monthlyRunRateFiltered.mode === 'range' && monthlyRunRateFiltered.averagePerMonth > 0
-                        ? ` • Avg ${formatCurrency(monthlyRunRateFiltered.averagePerMonth)}/bln`
-                        : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progress serapan</span>
-                  <span className="text-[10px] font-bold text-slate-600">{absorbedPct.toFixed(1)}%</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-700"
-                    style={{ width: `${absorbedPct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Billing Summary Cards - COLORFUL VERSION */}
-        {data.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-            {sortedStatus2Cards.map(({ key, label }) => {
-              const theme = getStatusTheme(label);
-              const value = status2Stats[key]?.sum || 0;
-              const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
-              
-              return (
-                <div key={key} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
-                  {/* Subtle decorative circle */}
-                  <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
-                  
-                  <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
-                    {label}
-                  </p>
-                  <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
-                    {formatCurrency(value)}
-                  </p>
-                  
-                  <div className="flex items-center justify-between mt-3">
-                    <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
-                      {percentage.toFixed(1)}% of total
-                    </span>
-                    <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5">
-                      <div 
-                        className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
-                        style={{ width: `${percentage}%` }}
-                      ></div>
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progress serapan</span>
+                      <span className="text-[10px] font-bold text-slate-600">{absorbedPct.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-700"
+                        style={{ width: `${absorbedPct}%` }}
+                      />
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            </div>
+
+            {/* Status Billing Summary Cards - COLORFUL VERSION */}
+            {data.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+                {sortedStatus2Cards.map(({ key, label }) => {
+                  const theme = getStatusTheme(label);
+                  const value = status2Stats[key]?.sum || 0;
+                  const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
+                  
+                  return (
+                    <div key={key} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
+                      {/* Subtle decorative circle */}
+                      <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
+                      
+                      <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
+                        {label}
+                      </p>
+                      <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
+                        {formatCurrency(value)}
+                      </p>
+                      
+                      <div className="flex items-center justify-between mt-3">
+                        <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
+                          {percentage.toFixed(1)}% of total
+                        </span>
+                        <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5">
+                          <div 
+                            className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
+                            style={{ width: `${percentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
 
         {/* Dynamic Content */}
@@ -804,7 +822,7 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {activeTab === 'pivot' && (
+            {activePage === 'pivot' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="flex items-center justify-between mb-5 px-1">
                   <div>
@@ -819,7 +837,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'raw' && (
+            {activePage === 'home' && activeTab === 'raw' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="flex items-center justify-between mb-5 px-1">
                   <div>
@@ -834,7 +852,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'dashboard' && (
+            {activePage === 'home' && activeTab === 'dashboard' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="mb-6 px-1">
                   <h3 className="text-xl font-black text-slate-800 flex items-center gap-2 mb-1">
