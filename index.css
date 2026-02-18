@@ -21,7 +21,7 @@ html {
   - If still too long, allow horizontal scroll within the line (no layout overflow)
 */
 .safe-number {
-  display: block;
+  display: inline-block;
   max-width: 100%;
   white-space: nowrap;
   overflow-x: auto;
@@ -35,7 +35,7 @@ html {
 
 /* Slightly tighter line-height for large numeric headings */
 .safe-number-tight {
-  display: block;
+  display: inline-block;
   max-width: 100%;
   white-space: nowrap;
   overflow-x: auto;
