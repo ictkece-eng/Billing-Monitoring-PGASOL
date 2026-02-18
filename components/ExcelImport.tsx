@@ -21,7 +21,9 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
    */
   const parseIdrInteger = (val: any): number => {
     if (val === undefined || val === null || val === '') return 0;
-    if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+    // XLSX may return numbers as floats (or scientific notation already materialized).
+    // This app treats nilaiTagihan as integer IDR, so truncate to avoid float artifacts.
+    if (typeof val === 'number') return Number.isFinite(val) ? Math.trunc(val) : 0;
 
     const raw = String(val).trim();
     if (!raw) return 0;
