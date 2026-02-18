@@ -17,6 +17,15 @@ const formatCurrency = (amount: number) => {
 };
 
 const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
+  const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
+  const canonicalizeStatus2 = (raw: any): string => {
+    const s = String(raw ?? '').trim();
+    const key = normalizeStatus2Key(s);
+    if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') return 'manual';
+    const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
+    return canonical || s;
+  };
+
   const pivotData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
@@ -33,7 +42,7 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
         };
       }
       
-      const s2 = item.status2 || 'manual';
+      const s2 = canonicalizeStatus2(item.status2);
       const currentVal = map[key].data[s2] || 0;
       map[key].data[s2] = currentVal + item.nilaiTagihan;
       map[key].total += item.nilaiTagihan;
