@@ -360,6 +360,48 @@ const App: React.FC = () => {
     return sums;
   };
 
+  const countByStatus2Key = (rows: BudgetRecord[]) => {
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      const key = normalizeStatus2Key(r.status2) || 'manual';
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  };
+
+  const labelByStatus2Key = (rows: BudgetRecord[]) => {
+    const labels: Record<string, string> = {};
+    for (const r of rows) {
+      const raw = normalizeStatus2(r.status2);
+      const key = normalizeStatus2Key(raw) || 'manual';
+      if (!labels[key]) labels[key] = raw || 'manual';
+    }
+    return labels;
+  };
+
+  const formatTopStatus2Lines = (
+    sums: Record<string, number>,
+    counts: Record<string, number>,
+    labels: Record<string, string>,
+    topN = 8
+  ) => {
+    const entries = Object.keys(sums)
+      .map(k => ({
+        key: k,
+        label: labels[k] || k || 'manual',
+        sum: sums[k] || 0,
+        count: counts[k] || 0,
+      }))
+      .sort((a, b) => b.sum - a.sum);
+
+    const head = entries.slice(0, topN);
+    const rest = entries.length - head.length;
+
+    const lines = head.map(e => `• ${e.label}: ${formatCurrency(e.sum)} (${e.count} baris)`);
+    if (rest > 0) lines.push(`• ...dan ${rest} status2 lainnya`);
+    return lines.join('\n');
+  };
+
   // Build a stable fingerprint for de-duplication.
   // Goal: if the same row (same fields + same nilai) is imported again, it will NOT overwrite or duplicate.
   const getRecordFingerprint = (r: BudgetRecord) => {
@@ -461,6 +503,11 @@ const App: React.FC = () => {
       const addedSums = sumByStatus2Key(toAdd);
       const skippedSums = sumByStatus2Key(skippedRows);
 
+      const fileCounts = countByStatus2Key(importedData);
+      const fileLabels = labelByStatus2Key(importedData);
+
+      const fileTotal = importedData.reduce((acc, r) => acc + (r.nilaiTagihan || 0), 0);
+
       const manualFile = fileSums['manual'] || 0;
       const manualAdded = addedSums['manual'] || 0;
       const manualSkipped = skippedSums['manual'] || 0;
@@ -472,7 +519,9 @@ const App: React.FC = () => {
           `Cek SUM status2=manual (berdasarkan kartu):\n` +
           `• SUM manual (file): ${formatCurrency(manualFile)}\n` +
           `• SUM manual (ditambahkan): ${formatCurrency(manualAdded)}\n` +
-          `• SUM manual (duplikat dilewati): ${formatCurrency(manualSkipped)}`
+          `• SUM manual (duplikat dilewati): ${formatCurrency(manualSkipped)}\n\n` +
+          `Total nilai (file): ${formatCurrency(fileTotal)}\n\n` +
+          `Top status2 (file):\n${formatTopStatus2Lines(fileSums, fileCounts, fileLabels)}`
         );
       });
 
