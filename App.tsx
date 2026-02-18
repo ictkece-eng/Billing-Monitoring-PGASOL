@@ -351,6 +351,15 @@ const App: React.FC = () => {
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
+  const sumByStatus2Key = (rows: BudgetRecord[]) => {
+    const sums: Record<string, number> = {};
+    for (const r of rows) {
+      const key = normalizeStatus2Key(r.status2) || 'manual';
+      sums[key] = (sums[key] || 0) + (r.nilaiTagihan || 0);
+    }
+    return sums;
+  };
+
   // Build a stable fingerprint for de-duplication.
   // Goal: if the same row (same fields + same nilai) is imported again, it will NOT overwrite or duplicate.
   const getRecordFingerprint = (r: BudgetRecord) => {
@@ -437,19 +446,33 @@ const App: React.FC = () => {
       let skipped = 0;
 
       const toAdd: BudgetRecord[] = [];
+      const skippedRows: BudgetRecord[] = [];
       for (const row of importedData) {
         const fp = getRecordFingerprint(row);
         if (existing.has(fp)) {
           skipped++;
+          skippedRows.push(row);
           continue;
         }
         toAdd.push(row);
       }
 
+      const fileSums = sumByStatus2Key(importedData);
+      const addedSums = sumByStatus2Key(toAdd);
+      const skippedSums = sumByStatus2Key(skippedRows);
+
+      const manualFile = fileSums['manual'] || 0;
+      const manualAdded = addedSums['manual'] || 0;
+      const manualSkipped = skippedSums['manual'] || 0;
+
       // Feedback after state update (async safe)
       queueMicrotask(() => {
         alert(
-          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}.`
+          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}.\n\n` +
+          `Cek SUM status2=manual (berdasarkan kartu):\n` +
+          `• SUM manual (file): ${formatCurrency(manualFile)}\n` +
+          `• SUM manual (ditambahkan): ${formatCurrency(manualAdded)}\n` +
+          `• SUM manual (duplikat dilewati): ${formatCurrency(manualSkipped)}`
         );
       });
 
