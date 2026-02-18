@@ -326,11 +326,34 @@ const App: React.FC = () => {
   const normalizeStatus2 = (s: string | undefined | null) => (s || '').trim();
   const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
 
+  // Canonicalize status2 so cards match Excel/pivot columns consistently.
+  // - Treat blanks/placeholders as manual
+  // - Map case-insensitively to STATUS_COLS
+  // - Normalize internal whitespace to avoid accidental splitting (e.g., double spaces)
+  const normalizeStatus2Text = (raw: unknown) =>
+    String(raw ?? '')
+      .replace(/\u00A0/g, ' ') // NBSP
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // zero-width
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const canonicalizeStatus2 = (raw: unknown): string => {
+    const s = normalizeStatus2Text(raw);
+    const key = s.toLowerCase();
+
+    if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') {
+      return 'manual';
+    }
+
+    const canonical = STATUS_COLS.find(col => normalizeStatus2Text(col).toLowerCase() === key);
+    return canonical || s;
+  };
+
   // Build status2 list dynamically (one card per unique status2 in the current filtered view)
   const status2CardList = useMemo(() => {
     const map = new Map<string, string>(); // key -> display label
     for (const item of filteredData) {
-      const raw = normalizeStatus2(item.status2);
+      const raw = canonicalizeStatus2(item.status2);
       const key = normalizeStatus2Key(raw) || 'manual';
       const label = raw || 'manual';
       if (!map.has(key)) map.set(key, label);
@@ -342,7 +365,7 @@ const App: React.FC = () => {
   const status2Stats = useMemo(() => {
     const stats: Record<string, { sum: number; count: number }> = {};
     for (const item of filteredData) {
-      const key = normalizeStatus2Key(item.status2) || 'manual';
+      const key = normalizeStatus2Key(canonicalizeStatus2(item.status2)) || 'manual';
       if (!stats[key]) stats[key] = { sum: 0, count: 0 };
       stats[key].sum += safeAmount(item.nilaiTagihan);
       stats[key].count += 1;
@@ -381,7 +404,7 @@ const App: React.FC = () => {
   const sumByStatus2Key = (rows: BudgetRecord[]) => {
     const sums: Record<string, number> = {};
     for (const r of rows) {
-      const key = normalizeStatus2Key(r.status2) || 'manual';
+      const key = normalizeStatus2Key(canonicalizeStatus2(r.status2)) || 'manual';
       sums[key] = (sums[key] || 0) + safeAmount(r.nilaiTagihan);
     }
     return sums;
@@ -390,7 +413,7 @@ const App: React.FC = () => {
   const countByStatus2Key = (rows: BudgetRecord[]) => {
     const counts: Record<string, number> = {};
     for (const r of rows) {
-      const key = normalizeStatus2Key(r.status2) || 'manual';
+      const key = normalizeStatus2Key(canonicalizeStatus2(r.status2)) || 'manual';
       counts[key] = (counts[key] || 0) + 1;
     }
     return counts;
@@ -399,7 +422,7 @@ const App: React.FC = () => {
   const labelByStatus2Key = (rows: BudgetRecord[]) => {
     const labels: Record<string, string> = {};
     for (const r of rows) {
-      const raw = normalizeStatus2(r.status2);
+      const raw = canonicalizeStatus2(r.status2);
       const key = normalizeStatus2Key(raw) || 'manual';
       if (!labels[key]) labels[key] = raw || 'manual';
     }
