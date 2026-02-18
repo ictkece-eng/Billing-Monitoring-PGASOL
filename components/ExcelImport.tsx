@@ -193,11 +193,34 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
             ...findColsByAlnumPrefix('periode'),
           ])];
 
-          // Nilai tagihan sering terpecah: "Rp" + angka + kolom lain (mis scientific)
-          const nilaiPrefixCols = [...new Set([
-            ...findColsByAlnumPrefix('nilaitagihan'),
-            ...findColsByAlnumPrefix('nilai'),
-          ])];
+          // Nilai tagihan sering terpecah: group header "Nilai Tagihan" yang merge ke beberapa kolom,
+          // lalu sub-kolom seperti "Rp" dan kolom angka (kadang header kosong).
+          // Jangan pakai prefix umum seperti "nilai" karena bisa menangkap kolom lain dan mengakibatkan selisih.
+          const baseNilaiCols = [...new Set(findColsByAlnumPrefix('nilaitagihan'))];
+          const nilaiCandidateSet = new Set<number>();
+          for (const idx of baseNilaiCols) {
+            nilaiCandidateSet.add(idx);
+            // Include neighbor columns if their headers are empty or indicate currency
+            for (const n of [idx - 1, idx + 1, idx + 2]) {
+              if (n < 0 || n >= headers.length) continue;
+              const meta = headerMeta.find(m => m.idx === n);
+              const alnum = (meta?.alnum || '').trim();
+              // allow empty header or currency markers
+              if (!alnum || alnum === 'rp' || alnum === 'idr') {
+                nilaiCandidateSet.add(n);
+              }
+            }
+          }
+
+          // Keep only columns that actually contain non-zero numeric values (sample first 25 rows)
+          const nilaiPrefixCols = Array.from(nilaiCandidateSet).filter(colIdx => {
+            const sampleN = Math.min(25, aoa.length - 1);
+            for (let s = 1; s <= sampleN; s++) {
+              const v = (aoa[s] || [])[colIdx];
+              if (parseIdrInteger(v) !== 0) return true;
+            }
+            return false;
+          });
 
           // Status2/billing status
           const colStatus2Exact = findFirstCol(['status2', 'status 2', 'status billing', 'billing status']);
