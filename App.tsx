@@ -355,6 +355,26 @@ const App: React.FC = () => {
     return [...status2CardList].sort((a, b) => (status2Stats[b.key]?.sum || 0) - (status2Stats[a.key]?.sum || 0));
   }, [status2CardList, status2Stats]);
 
+  // Integrity check: sum of all status2 cards should equal the Grand Total Tagihan (for current filteredData).
+  // If there is a mismatch, it indicates data issues (e.g., NaN/Infinity, unexpected parsing) rather than UI math.
+  const status2CardsTotal = useMemo(() => {
+    return Object.values(status2Stats).reduce((acc, s) => acc + safeAmount(s?.sum), 0);
+  }, [status2Stats]);
+
+  const status2CardsDiff = useMemo(() => {
+    // diff should be 0 when everything is consistent
+    return totalValue - status2CardsTotal;
+  }, [totalValue, status2CardsTotal]);
+
+  const rowsWithBlankStatus2 = useMemo(() => {
+    // Note: blanks are intentionally bucketed into "manual".
+    let c = 0;
+    for (const r of filteredData) {
+      if (!String(r.status2 ?? '').trim()) c++;
+    }
+    return c;
+  }, [filteredData]);
+
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
@@ -872,38 +892,54 @@ const App: React.FC = () => {
 
             {/* Status Billing Summary Cards - COLORFUL VERSION */}
             {data.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-                {sortedStatus2Cards.map(({ key, label }) => {
-                  const theme = getStatusTheme(label);
-                  const value = status2Stats[key]?.sum || 0;
-                  const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
-                  
-                  return (
-                    <div key={key} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
-                      {/* Subtle decorative circle */}
-                      <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
-                      
-                      <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
-                        {label}
-                      </p>
-                      <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
-                        {formatCurrency(value)}
-                      </p>
-                      
-                      <div className="flex items-center justify-between mt-3">
-                        <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
-                          {percentage.toFixed(1)}% of total
-                        </span>
-                        <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5">
-                          <div 
-                            className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
-                            style={{ width: `${percentage}%` }}
-                          ></div>
+              <div className="mb-10">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Ringkasan Status2 (berdasarkan filter aktif)
+                  </p>
+                  <div
+                    className={`text-[10px] font-bold tabular-nums ${Math.abs(status2CardsDiff) === 0 ? 'text-emerald-700' : 'text-rose-700'}`}
+                    title="Validasi: Σ semua kartu status2 harus sama dengan Grand Total Tagihan (filter aktif)."
+                  >
+                    Validasi: Σ kartu = {formatCurrency(status2CardsTotal)} · Grand Total = {formatCurrency(totalValue)}
+                    {Math.abs(status2CardsDiff) === 0 ? '' : ` · Selisih: ${formatCurrency(status2CardsDiff)}`}
+                    {rowsWithBlankStatus2 > 0 ? ` · Blank status2 → manual: ${rowsWithBlankStatus2} baris` : ''}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {sortedStatus2Cards.map(({ key, label }) => {
+                    const theme = getStatusTheme(label);
+                    const value = status2Stats[key]?.sum || 0;
+                    const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
+                    
+                    return (
+                      <div key={key} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
+                        {/* Subtle decorative circle */}
+                        <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
+                        
+                        <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
+                          {label}
+                        </p>
+                        <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
+                          {formatCurrency(value)}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mt-3">
+                          <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
+                            {percentage.toFixed(1)}% of total
+                          </span>
+                          <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5">
+                            <div 
+                              className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>
