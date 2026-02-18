@@ -523,7 +523,7 @@ const App: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
+                <div className="md:max-w-[380px] md:shrink-0">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
                   <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 safe-number-tight tabular-nums tracking-tight" title={formatCurrency(contractValue)}>{formatCurrency(contractValue)}</h2>
                   <p className="text-xs text-slate-500 font-medium mt-1">
@@ -531,7 +531,7 @@ const App: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full md:w-auto sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
+                <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full md:flex-1 md:min-w-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-2 xl:grid-cols-4">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] sm:min-w-0">
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
                     <p className="text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
