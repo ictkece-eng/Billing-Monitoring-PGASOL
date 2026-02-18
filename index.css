@@ -3,15 +3,23 @@
   This file is referenced by index.html ("/index.css").
 */
 
-/* Prevent long numbers (e.g., currency) from overflowing cards on narrow screens */
+/*
+  Keep long numbers (e.g., currency) inside cards WITHOUT wrapping.
+  - Single line only
+  - Truncate with ellipsis when space is too narrow
+*/
 .safe-number {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Slightly tighter line-height for large numeric headings (optional helper) */
+/* Slightly tighter line-height for large numeric headings */
 .safe-number-tight {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.1;
 }
