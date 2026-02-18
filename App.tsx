@@ -7,6 +7,7 @@ import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
 import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
+import Status2DetailModal from './components/Status2DetailModal';
 import { getBudgetInsights } from './services/geminiService';
 
 type PeriodeOption = { value: string; label: string };
@@ -143,6 +144,10 @@ const App: React.FC = () => {
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+
+  const [status2ModalOpen, setStatus2ModalOpen] = useState(false);
+  const [status2ModalKey, setStatus2ModalKey] = useState<string>('');
+  const [status2ModalLabel, setStatus2ModalLabel] = useState<string>('');
 
   // Guard: keep all aggregations consistent even if some rows contain non-finite numbers (NaN/Infinity).
   const safeAmount = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
@@ -402,6 +407,19 @@ const App: React.FC = () => {
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+
+  const status2ModalRows = useMemo(() => {
+    if (!status2ModalOpen || !status2ModalKey) return [] as BudgetRecord[];
+    return filteredData
+      .filter(r => (normalizeStatus2Key(canonicalizeStatus2(r.status2)) || 'manual') === status2ModalKey)
+      .slice()
+      .sort((a, b) => safeAmount(b.nilaiTagihan) - safeAmount(a.nilaiTagihan));
+  }, [status2ModalOpen, status2ModalKey, filteredData]);
+
+  const status2ModalTotal = useMemo(() => {
+    if (!status2ModalOpen || !status2ModalKey) return 0;
+    return status2ModalRows.reduce((acc, r) => acc + safeAmount(r.nilaiTagihan), 0);
+  }, [status2ModalOpen, status2ModalKey, status2ModalRows]);
 
   const sumByStatus2Key = (rows: BudgetRecord[]) => {
     const sums: Record<string, number> = {};
@@ -1011,7 +1029,26 @@ const App: React.FC = () => {
                     const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
                     
                     return (
-                      <div key={key} className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative`}>
+                      <div
+                        key={key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setStatus2ModalKey(key);
+                          setStatus2ModalLabel(label);
+                          setStatus2ModalOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setStatus2ModalKey(key);
+                            setStatus2ModalLabel(label);
+                            setStatus2ModalOpen(true);
+                          }
+                        }}
+                        className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40`}
+                        title="Klik untuk melihat detail data"
+                      >
                         {/* Subtle decorative circle */}
                         <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
                         
@@ -1041,6 +1078,15 @@ const App: React.FC = () => {
             )}
           </>
         )}
+
+        <Status2DetailModal
+          open={status2ModalOpen}
+          title={`Detail Status2: ${status2ModalLabel || status2ModalKey}`}
+          rows={status2ModalRows}
+          total={status2ModalTotal}
+          formatCurrency={formatCurrency}
+          onClose={() => setStatus2ModalOpen(false)}
+        />
 
         {/* Dynamic Content */}
         {data.length === 0 ? (
