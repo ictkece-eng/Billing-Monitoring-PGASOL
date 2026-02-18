@@ -13,9 +13,10 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
   const canonicalizeStatus2 = (raw: any): string => {
-    const s = String(raw ?? '').trim();
+    const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
     const key = normalizeStatus2Key(s);
-    if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') return 'manual';
+    if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') return 'Status2 Kosong';
+    if (key === 'manual') return 'manual';
     const canonical = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
     return canonical || s;
   };
