@@ -137,8 +137,9 @@ const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [filterPeriode, setFilterPeriode] = useState<string>(ALL_PERIODE_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activePage, setActivePage] = useState<'home' | 'pivot'>('home');
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'raw'>('raw');
+  const [activePage, setActivePage] = useState<'home' | 'tables'>('home');
+  const [activeTab, setActiveTab] = useState<'dashboard'>('dashboard');
+  const [activeTableTab, setActiveTableTab] = useState<'pivot' | 'raw'>('pivot');
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
@@ -573,7 +574,7 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {/* Menu: Pivot dibuat halaman/section tersendiri (tidak digabung di halaman utama) */}
+              {/* Menu: Tabel dibuat halaman tersendiri (tidak digabung di beranda) */}
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                 <button
                   onClick={() => setActivePage('home')}
@@ -582,22 +583,34 @@ const App: React.FC = () => {
                   Beranda
                 </button>
                 <button
-                  onClick={() => setActivePage('pivot')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'pivot' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => setActivePage('tables')}
+                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'tables' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  Pivot Rekap
+                  Tabel Excel
                 </button>
               </div>
 
-              {/* Tabs khusus halaman utama */}
-              {activePage === 'home' && (
+              {/* Submenu khusus halaman Tabel */}
+              {activePage === 'tables' && (
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                   <button
-                    onClick={() => setActiveTab('raw')}
-                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'raw' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                    onClick={() => setActiveTableTab('pivot')}
+                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTableTab === 'pivot' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                   >
-                    Data Mentah
+                    Pivot Rekap
                   </button>
+                  <button
+                    onClick={() => setActiveTableTab('raw')}
+                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTableTab === 'raw' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Database Transaksi
+                  </button>
+                </div>
+              )}
+
+              {/* Tabs khusus beranda */}
+              {activePage === 'home' && (
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                   <button
                     onClick={() => setActiveTab('dashboard')}
                     className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
@@ -822,7 +835,7 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {activePage === 'pivot' && (
+            {activePage === 'tables' && activeTableTab === 'pivot' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="flex items-center justify-between mb-5 px-1">
                   <div>
@@ -837,7 +850,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {activePage === 'home' && activeTab === 'raw' && (
+            {activePage === 'tables' && activeTableTab === 'raw' && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="flex items-center justify-between mb-5 px-1">
                   <div>
