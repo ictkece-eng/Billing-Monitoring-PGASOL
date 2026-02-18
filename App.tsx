@@ -330,6 +330,23 @@ const App: React.FC = () => {
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
+  // Build a stable fingerprint for de-duplication.
+  // Goal: if the same row (same fields + same nilai) is imported again, it will NOT overwrite or duplicate.
+  const getRecordFingerprint = (r: BudgetRecord) => {
+    const parts = [
+      (r.namaUser || '').trim().toLowerCase(),
+      (r.tim || '').trim().toLowerCase(),
+      (r.periode || '').trim().toLowerCase(),
+      String(Number(r.nilaiTagihan || 0)),
+      (r.noRO || '').trim().toLowerCase(),
+      (r.tglBAST || '').trim().toLowerCase(),
+      (r.noBAST || '').trim().toLowerCase(),
+      (r.status2 || '').trim().toLowerCase(),
+      (r.saNo || '').trim().toLowerCase(),
+    ];
+    return parts.join('|');
+  };
+
   // Helper function for colorful card themes
   const getStatusTheme = (status: string) => {
     switch (status) {
@@ -369,8 +386,30 @@ const App: React.FC = () => {
   };
 
   const handleImportExcel = (importedData: BudgetRecord[]) => {
-    setData(importedData);
-    alert(`Berhasil mengimpor ${importedData.length} data baru dari Excel!`);
+    setData(prev => {
+      const existing = new Set(prev.map(getRecordFingerprint));
+      let skipped = 0;
+
+      const toAdd: BudgetRecord[] = [];
+      for (const row of importedData) {
+        const fp = getRecordFingerprint(row);
+        if (existing.has(fp)) {
+          skipped++;
+          continue;
+        }
+        existing.add(fp);
+        toAdd.push(row);
+      }
+
+      // Feedback after state update (async safe)
+      queueMicrotask(() => {
+        alert(
+          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}.`
+        );
+      });
+
+      return [...prev, ...toAdd];
+    });
   };
 
   useEffect(() => {
