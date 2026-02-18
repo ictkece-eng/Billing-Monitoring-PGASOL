@@ -3,6 +3,13 @@
   This file is referenced by index.html ("/index.css").
 */
 
+/* Slightly improve overall text rendering */
+html {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 /*
   Keep long numbers (e.g., currency) inside cards WITHOUT wrapping.
   Requirement:
@@ -50,4 +57,33 @@
 @media (max-width: 420px) {
   .safe-number { font-size: 0.80em !important; }
   .safe-number-tight { font-size: 0.82em !important; }
+}
+
+/* Table legibility improvements (Bootstrap table wrapper used by Pivot/Raw tabs) */
+.table-modern {
+  font-size: 0.72rem;
+}
+
+.table-modern thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.table-modern td,
+.table-modern th {
+  line-height: 1.25;
+}
+
+.table-modern tbody tr:nth-child(even) {
+  background-color: #fbfcfe;
+}
+
+.table-modern tbody tr:hover {
+  background-color: #f6f9ff;
+}
+
+/* Make numeric columns easier to scan when monospace is used */
+.table-modern .font-monospace {
+  font-variant-numeric: tabular-nums;
 }
