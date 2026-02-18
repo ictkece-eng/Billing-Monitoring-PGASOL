@@ -510,6 +510,9 @@ const App: React.FC = () => {
       const addedSums = sumByStatus2Key(toAdd);
       const skippedSums = sumByStatus2Key(skippedRows);
 
+      const nextData = [...prev, ...toAdd];
+      const nextSums = sumByStatus2Key(nextData);
+
       const fileCounts = countByStatus2Key(importedData);
       const fileLabels = labelByStatus2Key(importedData);
 
@@ -518,6 +521,7 @@ const App: React.FC = () => {
       const manualFile = fileSums['manual'] || 0;
       const manualAdded = addedSums['manual'] || 0;
       const manualSkipped = skippedSums['manual'] || 0;
+      const manualTotalAfter = nextSums['manual'] || 0;
 
       // Feedback after state update (async safe)
       queueMicrotask(() => {
@@ -527,12 +531,13 @@ const App: React.FC = () => {
           `• SUM manual (file): ${formatCurrency(manualFile)}\n` +
           `• SUM manual (ditambahkan): ${formatCurrency(manualAdded)}\n` +
           `• SUM manual (duplikat dilewati): ${formatCurrency(manualSkipped)}\n\n` +
+          `• SUM manual (total data setelah merge): ${formatCurrency(manualTotalAfter)}\n\n` +
           `Total nilai (file): ${formatCurrency(fileTotal)}\n\n` +
           `Top status2 (file):\n${formatTopStatus2Lines(fileSums, fileCounts, fileLabels)}`
         );
       });
 
-      return [...prev, ...toAdd];
+      return nextData;
     });
   };
 
