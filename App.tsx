@@ -331,20 +331,22 @@ const App: React.FC = () => {
     return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
   }, [filteredData]);
 
-  // Totals per status2 (dynamic)
-  const status2Summaries = useMemo(() => {
-    const totals: Record<string, number> = {};
+  // Stats per status2 (dynamic): sum + count
+  const status2Stats = useMemo(() => {
+    const stats: Record<string, { sum: number; count: number }> = {};
     for (const item of filteredData) {
       const key = normalizeStatus2Key(item.status2) || 'manual';
-      totals[key] = (totals[key] || 0) + item.nilaiTagihan;
+      if (!stats[key]) stats[key] = { sum: 0, count: 0 };
+      stats[key].sum += item.nilaiTagihan;
+      stats[key].count += 1;
     }
-    return totals;
+    return stats;
   }, [filteredData]);
 
   // Sort cards by total (desc) so the most important statuses show first
   const sortedStatus2Cards = useMemo(() => {
-    return [...status2CardList].sort((a, b) => (status2Summaries[b.key] || 0) - (status2Summaries[a.key] || 0));
-  }, [status2CardList, status2Summaries]);
+    return [...status2CardList].sort((a, b) => (status2Stats[b.key]?.sum || 0) - (status2Stats[a.key]?.sum || 0));
+  }, [status2CardList, status2Stats]);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
@@ -685,7 +687,7 @@ const App: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
             {sortedStatus2Cards.map(({ key, label }) => {
               const theme = getStatusTheme(label);
-              const value = status2Summaries[key] || 0;
+              const value = status2Stats[key]?.sum || 0;
               const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
               
               return (
@@ -701,7 +703,9 @@ const App: React.FC = () => {
                   </p>
                   
                   <div className="flex items-center justify-between mt-3">
-                    <span className={`text-[9px] font-bold ${theme.text} opacity-70`}>{percentage.toFixed(1)}% of total</span>
+                    <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
+                      {percentage.toFixed(1)}% of total
+                    </span>
                     <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5">
                       <div 
                         className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
