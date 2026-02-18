@@ -352,8 +352,17 @@ const App: React.FC = () => {
 
     if (key === 'manual') return 'manual';
 
-    const canonical = STATUS_COLS.find(col => normalizeStatus2Text(col).toLowerCase() === key);
-    return canonical || s;
+    const canonicalExact = STATUS_COLS.find(col => normalizeStatus2Text(col).toLowerCase() === key);
+    if (canonicalExact) return canonicalExact;
+
+    // Handle common variants where notes are appended, e.g.
+    // "REQ Reject by my ssc(PHR)(sudah submit kembali ...)".
+    // If it starts with a known canonical status2, collapse into that bucket.
+    const canonicalPrefix = STATUS_COLS.find(col => {
+      const ck = normalizeStatus2Text(col).toLowerCase();
+      return ck && key.startsWith(ck);
+    });
+    return canonicalPrefix || s;
   };
 
   // Build status2 list dynamically (one card per unique status2 in the current filtered view)
