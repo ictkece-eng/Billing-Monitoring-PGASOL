@@ -848,7 +848,7 @@ const App: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Controls & Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Filter Periode</label>
@@ -900,25 +900,6 @@ const App: React.FC = () => {
                   {filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}
                 </span>
                 {searchQuery && <span className="text-[9px] opacity-70 italic truncate">Filtered by "{searchQuery}"</span>}
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-            <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Financial Intelligence</p>
-                </div>
-                <button 
-                  onClick={fetchAiInsight}
-                  disabled={loadingInsight || data.length === 0}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 disabled:text-slate-300"
-                >
-                  {loadingInsight ? 'Analysing...' : 'Generate Insight'}
-                </button>
-            </div>
-            <div className="text-[11px] leading-relaxed text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 min-h-[50px] italic">
-              {data.length === 0 ? "Import data untuk analisis." : (aiInsight || "Klik tombol di atas untuk melihat analisis pengeluaran otomatis oleh AI.")}
             </div>
           </div>
         </div>
