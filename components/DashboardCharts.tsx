@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { BudgetRecord } from '../types';
 import { STATUS_COLS } from '../constants';
 
@@ -50,6 +50,24 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
 
   const formatCurrency = (val: any) => `Rp ${new Intl.NumberFormat('id-ID').format(val)}`;
 
+  const formatCurrencyCompact = (val: any) => {
+    const n = typeof val === 'number' ? val : Number(val);
+    if (!Number.isFinite(n)) return 'Rp 0';
+    const abs = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    if (abs >= 1_000_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000_000).toFixed(abs >= 10_000_000_000_000 ? 0 : 1).replace(/\.0$/, '')} T`;
+    if (abs >= 1_000_000_000) return `${sign}Rp ${(abs / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1).replace(/\.0$/, '')} M`;
+    if (abs >= 1_000_000) return `${sign}Rp ${(abs / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')} jt`;
+    if (abs >= 1_000) return `${sign}Rp ${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1).replace(/\.0$/, '')} rb`;
+    return `${sign}Rp ${new Intl.NumberFormat('id-ID').format(abs)}`;
+  };
+
+  const truncateLabel = (s: any, maxLen = 26) => {
+    const str = String(s ?? '');
+    if (str.length <= maxLen) return str;
+    return `${str.slice(0, Math.max(0, maxLen - 1))}…`;
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
@@ -75,15 +93,37 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
         <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6">Spending by Billing Status</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={statusDistributionForChart} layout="vertical" margin={{ left: 8 }}>
+            <BarChart data={statusDistributionForChart} layout="vertical" margin={{ top: 6, right: 28, bottom: 6, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" tickFormatter={(v) => `${Math.round(Number(v) || 0).toLocaleString('id-ID')}`} />
-              <YAxis dataKey="name" type="category" width={170} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={formatCurrency} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+              <XAxis
+                type="number"
+                tick={{ fontSize: 10 }}
+                tickFormatter={formatCurrencyCompact}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                dataKey="name"
+                type="category"
+                width={210}
+                tick={{ fontSize: 10 }}
+                tickFormatter={(v) => truncateLabel(v, 30)}
+              />
+              <Tooltip
+                formatter={formatCurrency}
+                labelFormatter={(label) => `Status: ${label}`}
+                contentStyle={{ borderRadius: 10, borderColor: '#e2e8f0' }}
+              />
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
                 {statusDistributionForChart.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
+                <LabelList
+                  dataKey="value"
+                  position="right"
+                  formatter={formatCurrencyCompact}
+                  style={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
+                />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
