@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { BudgetRecord } from '../types';
 import { STATUS_COLS } from '../constants';
 
@@ -44,6 +44,10 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
     }, {} as Record<string, number>)
   ).map(([name, value]) => ({ name, value: value as number }));
 
+  const statusDistributionForChart = statusDistribution
+    .slice()
+    .sort((a, b) => (b.value as number) - (a.value as number));
+
   const formatCurrency = (val: any) => `Rp ${new Intl.NumberFormat('id-ID').format(val)}`;
 
   return (
@@ -71,26 +75,21 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
         <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6">Spending by Billing Status</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={statusDistribution}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {statusDistribution.map((entry, index) => (
+            <BarChart data={statusDistributionForChart} layout="vertical" margin={{ left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+              <XAxis type="number" tickFormatter={(v) => `${Math.round(Number(v) || 0).toLocaleString('id-ID')}`} />
+              <YAxis dataKey="name" type="category" width={170} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={formatCurrency} />
+              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                {statusDistributionForChart.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
-              </Pie>
-              <Tooltip formatter={formatCurrency} />
-            </PieChart>
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
         <div className="flex flex-wrap gap-4 mt-2 justify-center">
-            {statusDistribution.map((s, i) => (
+            {statusDistributionForChart.map((s, i) => (
                 <div key={s.name} className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
                     <span className="text-[10px] text-slate-500 font-medium">{s.name}</span>
