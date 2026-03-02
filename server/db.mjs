@@ -27,7 +27,11 @@ const parseTidbUrl = (urlStr) => {
     const sslFromProtocol = protocol === 'mysqls:';
 
     const sslParam = u.searchParams.get('ssl') ?? u.searchParams.get('tls');
-    const sslEnabled = sslFromProtocol || toBool(sslParam);
+    // If URL doesn't specify ssl/tls, do not force-disable SSL.
+    // (TiDB Cloud Serverless requires secure transport.)
+    const sslEnabled = sslParam === null
+      ? (sslFromProtocol ? true : undefined)
+      : (sslFromProtocol || toBool(sslParam));
 
     const database = (u.pathname || '').replace(/^\//, '');
 
@@ -46,7 +50,9 @@ const parseTidbUrl = (urlStr) => {
 
 export const createPool = () => {
   const urlCfg = parseTidbUrl(env('TIDB_URL', ''));
-  const sslEnabled = urlCfg?.sslEnabled ?? toBool(env('TIDB_SSL', 'false'));
+  const sslEnabled = (urlCfg && urlCfg.sslEnabled !== undefined)
+    ? urlCfg.sslEnabled
+    : toBool(env('TIDB_SSL', 'false'));
   const caB64 = env('TIDB_SSL_CA_BASE64', '');
   const ca = caB64 ? decodeBase64ToUtf8(caB64) : null;
 
