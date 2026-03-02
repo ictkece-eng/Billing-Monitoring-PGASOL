@@ -9,7 +9,7 @@ import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
 import Status2DetailModal from './components/Status2DetailModal';
 import { getBudgetInsights } from './services/geminiService';
-import { fetchBudgetRecordsFromTiDB, uploadBudgetRecordsToTiDB } from './services/tidbService';
+import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateStats, uploadBudgetRecordsToTiDB } from './services/tidbService';
 
 type PeriodeOption = { value: string; label: string };
 
@@ -199,7 +199,14 @@ const App: React.FC = () => {
     setTidbUploading(true);
     try {
       const resp = await uploadBudgetRecordsToTiDB(data);
-      alert(`Upload ke TiDB selesai. Baris terkirim: ${resp.received ?? data.length}. affectedRows: ${resp.affectedRows ?? '-'}\n\nTips: setelah ini data akan bisa di-load lagi tanpa impor ulang (saat API TiDB aktif).`);
+      const sent = resp.sentUnique ?? resp.received ?? data.length;
+      const skipped = resp.skippedDuplicates ?? 0;
+      alert(
+        `Upload ke TiDB selesai. Baris terkirim (unik): ${sent}.` +
+          (skipped > 0 ? ` Duplikat tidak dikirim: ${skipped}.` : '') +
+          ` affectedRows: ${resp.affectedRows ?? '-'}\n\n` +
+          `Tips: setelah ini data akan bisa di-load lagi tanpa impor ulang (saat API TiDB aktif).`
+      );
     } catch (e: any) {
       alert(`Upload ke TiDB gagal: ${String(e?.message || e)}`);
     } finally {
@@ -811,6 +818,23 @@ const App: React.FC = () => {
           `Total nilai (file): ${formatCurrency(fileTotal)}\n\n` +
           `Top status2 (file):\n${formatTopStatus2Lines(fileSums, fileCounts, fileLabels)}`
         );
+
+        // Optional: notify how many imported rows already exist in TiDB.
+        // This does NOT change import behavior; it's only an informational alert.
+        (async () => {
+          const stats = await getTiDBDuplicateStats(importedData);
+          if (!stats) return;
+          if (stats.duplicatedRows <= 0) {
+            alert(`Cek TiDB: tidak ada baris duplikat dari TiDB (dari ${stats.checkedRows} baris file).`);
+            return;
+          }
+          alert(
+            `Cek TiDB (duplikat dari data yang sudah ada di TiDB):\n` +
+              `• ${stats.duplicatedRows} baris duplikat\n` +
+              `• (${stats.duplicatedUnique} transaksi unik)\n\n` +
+              `Catatan: ini hanya notifikasi. Data di aplikasi tetap mengikuti hasil import Excel.`
+          );
+        })();
       });
 
       return nextData;
