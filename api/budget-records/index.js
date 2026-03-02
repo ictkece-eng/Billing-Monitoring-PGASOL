@@ -1,4 +1,4 @@
-import { getPool } from '../_db.js';
+import { ensureBudgetRecordsTable, getPool } from '../_db.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -10,6 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const pool = getPool();
+    await ensureBudgetRecordsTable(pool);
     const [rows] = await pool.query(
       `SELECT id, status, namaUser, tim, periode,
               CAST(nilaiTagihan AS SIGNED) AS nilaiTagihan,
