@@ -97,6 +97,64 @@ export const getTiDBDuplicateStats = async (records: BudgetRecord[]) => {
   }
 };
 
+const chunkArray = <T,>(arr: T[], size: number) => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+const uniqNumbers = (nums: number[]) => Array.from(new Set(nums)).filter(n => Number.isFinite(n));
+
+/**
+ * Returns which imported Excel row numbers (sourceRow) already exist in TiDB.
+ * Non-breaking: returns null if API is unavailable.
+ */
+export const getTiDBDuplicateRowNumbers = async (records: BudgetRecord[]) => {
+  const keys = records.map(fingerprintKey);
+  const uniqueKeys = Array.from(new Set(keys));
+
+  try {
+    // Keep request bodies reasonably small; backend also has its own cap.
+    const existsMap = new Map<string, boolean>();
+    for (const part of chunkArray(uniqueKeys, 4000)) {
+      const res = await fetch('/api/budget-records/exist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprints: part }),
+      });
+      const data = (await res.json()) as ExistResponse;
+      if (!res.ok || !data.ok || !Array.isArray(data.exists)) {
+        return null;
+      }
+      for (let i = 0; i < part.length; i++) {
+        existsMap.set(part[i], Boolean(data.exists[i]));
+      }
+    }
+
+    const duplicatedUnique = uniqueKeys.reduce((acc, k) => acc + (existsMap.get(k) ? 1 : 0), 0);
+
+    const duplicatedRowNumbers: number[] = [];
+    let duplicatedRows = 0;
+    for (let i = 0; i < records.length; i++) {
+      const k = keys[i];
+      if (!existsMap.get(k)) continue;
+      duplicatedRows++;
+      const sr = (records[i] as any)?.sourceRow;
+      if (typeof sr === 'number' && Number.isFinite(sr)) duplicatedRowNumbers.push(sr);
+    }
+
+    return {
+      duplicatedRows,
+      duplicatedUnique,
+      checkedRows: keys.length,
+      checkedUnique: uniqueKeys.length,
+      duplicatedRowNumbers: uniqNumbers(duplicatedRowNumbers).sort((a, b) => a - b),
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const uploadBudgetRecordsToTiDB = async (records: BudgetRecord[]) => {
   const { unique, skippedDuplicates } = dedupeRecordsForUpload(records);
 
