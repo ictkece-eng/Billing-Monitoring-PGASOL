@@ -19,18 +19,44 @@ const decodeBase64ToUtf8 = (b64) => {
   }
 };
 
+const parseTidbUrl = (urlStr) => {
+  try {
+    const u = new URL(String(urlStr));
+    // Accept mysql://, mysqls:// (treat mysqls as SSL), tidb:// as aliases.
+    const protocol = (u.protocol || '').toLowerCase();
+    const sslFromProtocol = protocol === 'mysqls:';
+
+    const sslParam = u.searchParams.get('ssl') ?? u.searchParams.get('tls');
+    const sslEnabled = sslFromProtocol || toBool(sslParam);
+
+    const database = (u.pathname || '').replace(/^\//, '');
+
+    return {
+      host: u.hostname,
+      port: u.port ? Number(u.port) : undefined,
+      user: u.username ? decodeURIComponent(u.username) : undefined,
+      password: u.password ? decodeURIComponent(u.password) : undefined,
+      database: database || undefined,
+      sslEnabled,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const createPool = () => {
-  const sslEnabled = toBool(env('TIDB_SSL', 'false'));
+  const urlCfg = parseTidbUrl(env('TIDB_URL', ''));
+  const sslEnabled = urlCfg?.sslEnabled ?? toBool(env('TIDB_SSL', 'false'));
   const caB64 = env('TIDB_SSL_CA_BASE64', '');
   const ca = caB64 ? decodeBase64ToUtf8(caB64) : null;
 
   /** @type {import('mysql2/promise').PoolOptions} */
   const cfg = {
-    host: env('TIDB_HOST', '127.0.0.1'),
-    port: Number(env('TIDB_PORT', '4000')),
-    user: env('TIDB_USER', 'root'),
-    password: env('TIDB_PASSWORD', ''),
-    database: env('TIDB_DATABASE', 'budget_monitoring'),
+    host: urlCfg?.host || env('TIDB_HOST', '127.0.0.1'),
+    port: Number(urlCfg?.port || env('TIDB_PORT', '4000')),
+    user: urlCfg?.user || env('TIDB_USER', 'root'),
+    password: urlCfg?.password ?? env('TIDB_PASSWORD', ''),
+    database: urlCfg?.database || env('TIDB_DATABASE', 'budget_monitoring'),
     connectionLimit: 10,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
