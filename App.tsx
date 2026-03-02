@@ -145,6 +145,9 @@ const App: React.FC = () => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
 
+  // UX: ringkasan status2 ditampilkan hanya saat user klik kartu "Terserap".
+  const [showStatus2Summary, setShowStatus2Summary] = useState(false);
+
   const [status2ModalOpen, setStatus2ModalOpen] = useState(false);
   const [status2ModalKey, setStatus2ModalKey] = useState<string>('');
   const [status2ModalLabel, setStatus2ModalLabel] = useState<string>('');
@@ -152,9 +155,12 @@ const App: React.FC = () => {
   const status2SummaryRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToStatus2Summary = () => {
-    // Ensure layout is ready (especially on mobile) before scrolling.
+    // Pastikan section-nya sudah dirender dulu sebelum scroll.
+    setShowStatus2Summary(true);
     requestAnimationFrame(() => {
-      status2SummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      requestAnimationFrame(() => {
+        status2SummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     });
   };
 
@@ -1017,7 +1023,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Status Billing Summary Cards - COLORFUL VERSION */}
-            {data.length > 0 && (
+            {showStatus2Summary && data.length > 0 && (
               <div ref={status2SummaryRef} className="mb-10" id="ringkasan-status2">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
