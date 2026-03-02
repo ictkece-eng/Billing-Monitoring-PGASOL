@@ -9,7 +9,7 @@ import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
 import Status2DetailModal from './components/Status2DetailModal';
 import { getBudgetInsights } from './services/geminiService';
-import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateStats, uploadBudgetRecordsToTiDB } from './services/tidbService';
+import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
 
 type PeriodeOption = { value: string; label: string };
 
@@ -819,19 +819,50 @@ const App: React.FC = () => {
           `Top status2 (file):\n${formatTopStatus2Lines(fileSums, fileCounts, fileLabels)}`
         );
 
-        // Optional: notify how many imported rows already exist in TiDB.
+        const formatRowNumberRanges = (nums: number[], maxTokens = 80) => {
+          const arr = Array.from(new Set(nums)).filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+          if (arr.length === 0) return '-';
+
+          const ranges: string[] = [];
+          let start = arr[0];
+          let prev = arr[0];
+          for (let i = 1; i < arr.length; i++) {
+            const cur = arr[i];
+            if (cur === prev + 1) {
+              prev = cur;
+              continue;
+            }
+            ranges.push(start === prev ? String(start) : `${start}-${prev}`);
+            start = cur;
+            prev = cur;
+          }
+          ranges.push(start === prev ? String(start) : `${start}-${prev}`);
+
+          if (ranges.length <= maxTokens) return ranges.join(', ');
+          const shown = ranges.slice(0, maxTokens).join(', ');
+          return `${shown}, ... (+${ranges.length - maxTokens} range lagi)`;
+        };
+
+        // Optional: notify which Excel row numbers already exist in TiDB.
         // This does NOT change import behavior; it's only an informational alert.
         (async () => {
-          const stats = await getTiDBDuplicateStats(importedData);
+          const stats = await getTiDBDuplicateRowNumbers(importedData);
           if (!stats) return;
+
           if (stats.duplicatedRows <= 0) {
             alert(`Cek TiDB: tidak ada baris duplikat dari TiDB (dari ${stats.checkedRows} baris file).`);
             return;
           }
+
+          const rowsText = stats.duplicatedRowNumbers.length
+            ? formatRowNumberRanges(stats.duplicatedRowNumbers)
+            : '(nomor baris tidak terbaca dari file)';
+
           alert(
-            `Cek TiDB (duplikat dari data yang sudah ada di TiDB):\n` +
+            `Cek TiDB (baris file yang SUDAH ADA di TiDB):\n` +
               `• ${stats.duplicatedRows} baris duplikat\n` +
-              `• (${stats.duplicatedUnique} transaksi unik)\n\n` +
+              `• (${stats.duplicatedUnique} transaksi unik)\n` +
+              `• Nomor baris Excel: ${rowsText}\n\n` +
               `Catatan: ini hanya notifikasi. Data di aplikasi tetap mengikuti hasil import Excel.`
           );
         })();
