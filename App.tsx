@@ -9,6 +9,7 @@ import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
 import Status2DetailModal from './components/Status2DetailModal';
 import { getBudgetInsights } from './services/geminiService';
+import { fetchBudgetRecordsFromTiDB, uploadBudgetRecordsToTiDB } from './services/tidbService';
 
 type PeriodeOption = { value: string; label: string };
 
@@ -144,6 +145,7 @@ const App: React.FC = () => {
   const [isInputOpen, setIsInputOpen] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const [tidbUploading, setTidbUploading] = useState(false);
 
   // UX: ringkasan status2 ditampilkan hanya saat user klik kartu "Terserap".
   const [showStatus2Summary, setShowStatus2Summary] = useState(false);
@@ -166,6 +168,44 @@ const App: React.FC = () => {
 
   // Guard: keep all aggregations consistent even if some rows contain non-finite numbers (NaN/Infinity).
   const safeAmount = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+
+  // Load persisted data from TiDB (if available). Non-breaking behavior:
+  // - If API is not running, silently keep existing local/mock data.
+  // - If DB is empty, keep existing local/mock data.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const records = await fetchBudgetRecordsFromTiDB();
+        if (cancelled) return;
+        if (Array.isArray(records) && records.length > 0) {
+          setData(records);
+        }
+      } catch {
+        // ignore: API not running or DB not configured
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleUploadToTiDB = async () => {
+    if (tidbUploading) return;
+    if (!data || data.length === 0) {
+      alert('Tidak ada data untuk diupload. Silakan impor Excel terlebih dahulu.');
+      return;
+    }
+    setTidbUploading(true);
+    try {
+      const resp = await uploadBudgetRecordsToTiDB(data);
+      alert(`Upload ke TiDB selesai. Baris terkirim: ${resp.received ?? data.length}. affectedRows: ${resp.affectedRows ?? '-'}\n\nTips: setelah ini data akan bisa di-load lagi tanpa impor ulang (saat API TiDB aktif).`);
+    } catch (e: any) {
+      alert(`Upload ke TiDB gagal: ${String(e?.message || e)}`);
+    } finally {
+      setTidbUploading(false);
+    }
+  };
 
   const periodes = useMemo<PeriodeOption[]>(() => {
     if (data.length === 0) return [{ value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL }];
@@ -809,6 +849,21 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <ExcelImport onImport={handleImportExcel} />
+                <button
+                  onClick={handleUploadToTiDB}
+                  disabled={tidbUploading}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md ${
+                    tidbUploading
+                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed shadow-slate-100'
+                      : 'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-100'
+                  }`}
+                  title="Upload data yang sudah ada di aplikasi ke database TiDB (butuh TiDB API server)"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  {tidbUploading ? 'Uploading...' : 'Upload TiDB'}
+                </button>
                 <button
                   onClick={() => setIsInputOpen(true)}
                   className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-100"
