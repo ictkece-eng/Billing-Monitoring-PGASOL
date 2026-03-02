@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getPool } from '../_db.js';
+import { ensureBudgetRecordsTable, getPool } from '../_db.js';
 import { readJsonBody } from '../_body.js';
 
 const safeStr = (v) => (v === undefined || v === null ? '' : String(v));
@@ -66,6 +66,7 @@ export default async function handler(req, res) {
     }
 
     const pool = getPool();
+    await ensureBudgetRecordsTable(pool);
     const normalized = input.map(normalizeRecord);
 
     const CHUNK = 500;
