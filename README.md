@@ -46,3 +46,27 @@ In two terminals:
 - Frontend: `npm run dev`
 
 The app will show a button **Upload TiDB** and will also try to load existing records from TiDB on startup.
+
+## Deploy to Vercel (with TiDB)
+
+This repo includes Vercel Serverless Functions under `api/`.
+When deployed to Vercel:
+
+- Frontend is served from `dist/`
+- Backend endpoints are available at:
+   - `GET /api/health`
+   - `GET /api/budget-records`
+   - `POST /api/budget-records/upload`
+
+### Vercel Environment Variables
+
+Set these in **Vercel → Project → Settings → Environment Variables** (do not commit secrets):
+
+- `TIDB_URL` (recommended): `mysql://USER:PASSWORD@HOST:4000/DBNAME?ssl=true`
+   - OR set `TIDB_HOST`, `TIDB_PORT`, `TIDB_USER`, `TIDB_PASSWORD`, `TIDB_DATABASE`
+- `TIDB_SSL` = `true` (if not using `?ssl=true`)
+- `TIDB_SSL_CA_BASE64` (optional)
+
+Also set (if you use AI insight):
+
+- `GEMINI_API_KEY`
