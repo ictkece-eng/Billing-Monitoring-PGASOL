@@ -363,6 +363,8 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
               tglKirimJKT: formatExcelValue(getCell(row, colTglKirimJKT) ?? ''),
               reviewerVendor: String(getCell(row, colReviewerVendor) ?? ''),
               keterangan: String(getCell(row, colKeterangan) ?? ''),
+              // Excel row number (1-based). aoa[0] is the header row.
+              sourceRow: rIdx + 1,
             });
           }
         }
@@ -460,6 +462,8 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport }) => {
               tglKirimJKT: formatExcelValue(normalizedRow['tgl kirim ke jkt'] || ''),
               reviewerVendor: String(normalizedRow['reviewer i vendor'] || ''),
               keterangan: String(normalizedRow['keterangan2'] || normalizedRow['keterangan'] || ''),
+              // Best-effort: sheet_to_json() uses the first row as header, so data starts at row 2.
+              sourceRow: index + 2,
             };
           });
 
