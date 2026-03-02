@@ -96,6 +96,39 @@ const normalizeRecord = (r) => {
   };
 };
 
+app.post('/api/budget-records/exist', async (req, res) => {
+  const fingerprints = req.body?.fingerprints;
+  if (!Array.isArray(fingerprints)) {
+    res.status(400).json({ ok: false, error: 'Body harus { fingerprints: string[] }' });
+    return;
+  }
+
+  try {
+    await ensureBudgetRecordsTable();
+
+    const MAX = 5000;
+    const list = fingerprints.slice(0, MAX).map(String);
+    const ids = list.map(s => crypto.createHash('sha256').update(String(s)).digest('hex'));
+    const found = new Set();
+
+    const CHUNK = 500;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const part = ids.slice(i, i + CHUNK);
+      if (part.length === 0) continue;
+      const placeholders = part.map(() => '?').join(',');
+      const [rows] = await pool.query(`SELECT id FROM budget_records WHERE id IN (${placeholders})`, part);
+      for (const r of rows || []) {
+        if (r?.id) found.add(String(r.id));
+      }
+    }
+
+    const exists = ids.map(id => found.has(id));
+    res.json({ ok: true, exists });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 AS ok');
