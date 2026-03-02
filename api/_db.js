@@ -52,13 +52,32 @@ export const getPool = () => {
   const caB64 = env('TIDB_SSL_CA_BASE64', '');
   const ca = caB64 ? decodeBase64ToUtf8(caB64) : null;
 
+  const host = urlCfg?.host || env('TIDB_HOST', '127.0.0.1');
+  const port = Number(urlCfg?.port || env('TIDB_PORT', '4000'));
+  const user = urlCfg?.user || env('TIDB_USER', 'root');
+  const password = urlCfg?.password ?? env('TIDB_PASSWORD', '');
+  const database = urlCfg?.database || env('TIDB_DATABASE', 'budget_monitoring');
+
+  // On Vercel, a fallback to localhost almost always means env vars were not set.
+  // Fail fast with a clear message (instead of ECONNREFUSED 127.0.0.1:4000).
+  const isVercel = toBool(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
+  const isLocalHost = String(host).toLowerCase() === '127.0.0.1' || String(host).toLowerCase() === 'localhost';
+  const hasUrl = Boolean(env('TIDB_URL', ''));
+  const hasHostVar = Boolean(process.env.TIDB_HOST);
+  if (isVercel && isLocalHost && !hasUrl && !hasHostVar) {
+    throw new Error(
+      'TiDB belum dikonfigurasi di Vercel. Set Environment Variable TIDB_URL (recommended) ' +
+        'atau TIDB_HOST/TIDB_USER/TIDB_PASSWORD/TIDB_DATABASE. Saat ini fallback ke 127.0.0.1:4000.'
+    );
+  }
+
   /** @type {import('mysql2/promise').PoolOptions} */
   const cfg = {
-    host: urlCfg?.host || env('TIDB_HOST', '127.0.0.1'),
-    port: Number(urlCfg?.port || env('TIDB_PORT', '4000')),
-    user: urlCfg?.user || env('TIDB_USER', 'root'),
-    password: urlCfg?.password ?? env('TIDB_PASSWORD', ''),
-    database: urlCfg?.database || env('TIDB_DATABASE', 'budget_monitoring'),
+    host,
+    port,
+    user,
+    password,
+    database,
     connectionLimit: 10,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
