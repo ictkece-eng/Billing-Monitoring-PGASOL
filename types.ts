@@ -15,6 +15,12 @@ export interface BudgetRecord {
   tglKirimJKT: string;
   reviewerVendor: string;
   keterangan: string; // From 'Keterangan2'
+
+  /**
+   * Optional: original Excel row number (1-based) when imported from Excel.
+   * Used only for user-facing notifications; not persisted to TiDB.
+   */
+  sourceRow?: number;
 }
 
 export type Status2Type = 
