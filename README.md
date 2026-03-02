@@ -18,3 +18,31 @@ View your app in AI Studio: https://ai.studio/apps/drive/1JfmsB3ObC29m55gKJrFkFE
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## (Optional) Persist data to TiDB (TiDB Cloud / TiDB Server)
+
+The frontend **must not** connect directly to TiDB (it would expose credentials).
+This repo includes a small Express API server under `server/` that acts as a secure bridge.
+
+### 1) Create table
+
+Run the SQL in `server/schema.sql` on your TiDB database (once).
+
+### 2) Configure environment
+
+Fill TiDB credentials in `.env` (this file is gitignored). You can either:
+
+- Use `TIDB_URL` (recommended for TiDB Cloud), e.g. `mysql://.../DB?ssl=true`, OR
+- Use `TIDB_HOST`, `TIDB_PORT`, `TIDB_USER`, `TIDB_PASSWORD`, `TIDB_DATABASE`.
+
+For TiDB Cloud, set `TIDB_SSL=true` (or `?ssl=true` in `TIDB_URL`).
+If your environment requires a custom CA, set `TIDB_SSL_CA_BASE64`.
+
+### 3) Run API server + frontend
+
+In two terminals:
+
+- API server: `npm run server:dev`
+- Frontend: `npm run dev`
+
+The app will show a button **Upload TiDB** and will also try to load existing records from TiDB on startup.
