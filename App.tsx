@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BudgetRecord } from './types';
 import { CONTRACT_VALUE_IDR, MOCK_DATA, STATUS_COLS } from './constants';
 import PivotTable from './components/PivotTable';
@@ -148,6 +148,15 @@ const App: React.FC = () => {
   const [status2ModalOpen, setStatus2ModalOpen] = useState(false);
   const [status2ModalKey, setStatus2ModalKey] = useState<string>('');
   const [status2ModalLabel, setStatus2ModalLabel] = useState<string>('');
+
+  const status2SummaryRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToStatus2Summary = () => {
+    // Ensure layout is ready (especially on mobile) before scrolling.
+    requestAnimationFrame(() => {
+      status2SummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   // Guard: keep all aggregations consistent even if some rows contain non-finite numbers (NaN/Infinity).
   const safeAmount = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
@@ -929,7 +938,19 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                      <div
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] w-max flex-none cursor-pointer hover:shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        role="button"
+                        tabIndex={0}
+                        title="Klik untuk melihat Ringkasan Status2 (berdasarkan filter aktif)"
+                        onClick={scrollToStatus2Summary}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            scrollToStatus2Summary();
+                          }
+                        }}
+                      >
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
                         <p className="text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
                         <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
@@ -997,7 +1018,7 @@ const App: React.FC = () => {
 
             {/* Status Billing Summary Cards - COLORFUL VERSION */}
             {data.length > 0 && (
-              <div className="mb-10">
+              <div ref={status2SummaryRef} className="mb-10" id="ringkasan-status2">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     Ringkasan Status2 (berdasarkan filter aktif)
