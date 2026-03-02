@@ -22,6 +22,34 @@ app.use(express.json({ limit: '25mb' }));
 
 const pool = createPool();
 
+let schemaEnsured = false;
+const ensureBudgetRecordsTable = async () => {
+  if (schemaEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS budget_records (
+      id VARCHAR(191) NOT NULL,
+      status VARCHAR(32) NOT NULL,
+      namaUser VARCHAR(255) NOT NULL,
+      tim VARCHAR(255) NOT NULL,
+      periode VARCHAR(64) NOT NULL,
+      nilaiTagihan BIGINT NOT NULL,
+      noRO VARCHAR(128) NULL,
+      tglBAST VARCHAR(64) NULL,
+      noBAST VARCHAR(128) NULL,
+      status2 VARCHAR(255) NULL,
+      emailSoftCopy VARCHAR(255) NULL,
+      saNo VARCHAR(128) NULL,
+      tglKirimJKT VARCHAR(64) NULL,
+      reviewerVendor VARCHAR(255) NULL,
+      keterangan TEXT NULL,
+      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id)
+    )
+  `);
+  schemaEnsured = true;
+};
+
 const safeStr = (v) => (v === undefined || v === null ? '' : String(v));
 const safeInt = (v) => {
   const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9\-]/g, ''));
@@ -79,6 +107,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.get('/api/budget-records', async (_req, res) => {
   try {
+    await ensureBudgetRecordsTable();
     const [rows] = await pool.query(
       `SELECT id, status, namaUser, tim, periode, CAST(nilaiTagihan AS SIGNED) AS nilaiTagihan, noRO, tglBAST, noBAST, status2, emailSoftCopy, saNo, tglKirimJKT, reviewerVendor, keterangan
        FROM budget_records
@@ -98,6 +127,7 @@ app.post('/api/budget-records/upload', async (req, res) => {
   }
 
   try {
+    await ensureBudgetRecordsTable();
     const normalized = input.map(normalizeRecord);
 
     // Chunk inserts to avoid max_allowed_packet issues.
