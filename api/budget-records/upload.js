@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { ensureBudgetRecordsTable, getPool } from '../_db.js';
+import { ensureBudgetRecordsTable, ensureUploadHistoryTables, getPool } from '../_db.js';
 import { readJsonBody } from '../_body.js';
 
 const safeStr = (v) => (v === undefined || v === null ? '' : String(v));
@@ -57,6 +57,7 @@ export default async function handler(req, res) {
   try {
     const body = await readJsonBody(req);
     const input = body?.records;
+    const meta = body?.meta || {};
 
     if (!Array.isArray(input)) {
       res.statusCode = 400;
@@ -68,6 +69,17 @@ export default async function handler(req, res) {
     const pool = getPool();
     await ensureBudgetRecordsTable(pool);
     const normalized = input.map(normalizeRecord);
+
+    const uploadBatchId = crypto.randomBytes(16).toString('hex');
+
+    const toIntOrNull = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    };
+    const clientReceived = toIntOrNull(meta.clientReceived);
+    const clientSentUnique = toIntOrNull(meta.clientSentUnique);
+    const clientSkippedDuplicates = toIntOrNull(meta.clientSkippedDuplicates);
+    const note = meta.note ? String(meta.note).slice(0, 255) : null;
 
     const CHUNK = 500;
     let affectedTotal = 0;
@@ -138,9 +150,43 @@ export default async function handler(req, res) {
       affectedTotal += Number(result?.affectedRows || 0);
     }
 
+    // Non-breaking: write upload history if possible, but do not fail the upload if history fails.
+    try {
+      await ensureUploadHistoryTables(pool);
+      await pool.query(
+        `INSERT INTO budget_upload_batches (
+           id, source, received, client_received, client_sent_unique, client_skipped_duplicates, affected_rows, note
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)` ,
+        [
+          uploadBatchId,
+          'web',
+          normalized.length,
+          clientReceived,
+          clientSentUnique,
+          clientSkippedDuplicates,
+          affectedTotal,
+          note,
+        ]
+      );
+
+      for (let i = 0; i < normalized.length; i += CHUNK) {
+        const part = normalized.slice(i, i + CHUNK);
+        if (part.length === 0) continue;
+        const placeholders = part.map(() => '(?, ?)').join(',');
+        const values2 = [];
+        for (const r of part) values2.push(uploadBatchId, r.id);
+        await pool.query(
+          `INSERT IGNORE INTO budget_upload_batch_items (upload_id, record_id) VALUES ${placeholders}`,
+          values2
+        );
+      }
+    } catch {
+      // ignore
+    }
+
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ ok: true, received: input.length, affectedRows: affectedTotal }));
+    res.end(JSON.stringify({ ok: true, received: input.length, affectedRows: affectedTotal, uploadBatchId }));
   } catch (e) {
     res.statusCode = 500;
     res.setHeader('Content-Type', 'application/json');
