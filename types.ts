@@ -38,3 +38,15 @@ export interface PivotRow {
   data: Record<string, number>;
   total: number;
 }
+
+export interface UploadHistoryEntry {
+  id: string;
+  createdAt: string;
+  source?: string | null;
+  received: number;
+  clientReceived?: number | null;
+  clientSentUnique?: number | null;
+  clientSkippedDuplicates?: number | null;
+  affectedRows?: number | null;
+  note?: string | null;
+}
