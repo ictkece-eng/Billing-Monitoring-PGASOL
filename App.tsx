@@ -8,6 +8,7 @@ import DetailedDataTable from './components/DetailedDataTable';
 import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
 import Status2DetailModal from './components/Status2DetailModal';
+import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
 import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
 
@@ -146,6 +147,7 @@ const App: React.FC = () => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [tidbUploading, setTidbUploading] = useState(false);
+  const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
 
   // UX: ringkasan status2 ditampilkan hanya saat user klik kartu "Terserap".
   const [showStatus2Summary, setShowStatus2Summary] = useState(false);
@@ -920,6 +922,16 @@ const App: React.FC = () => {
                   {tidbUploading ? 'Uploading...' : 'Upload TiDB'}
                 </button>
                 <button
+                  onClick={() => setUploadHistoryOpen(true)}
+                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-slate-100"
+                  title="Lihat riwayat upload ke TiDB (dan hapus riwayatnya jika perlu)"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v5l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  History Upload
+                </button>
+                <button
                   onClick={() => setIsInputOpen(true)}
                   className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-100"
                 >
@@ -1213,6 +1225,11 @@ const App: React.FC = () => {
           total={status2ModalTotal}
           formatCurrency={formatCurrency}
           onClose={() => setStatus2ModalOpen(false)}
+        />
+
+        <UploadHistoryModal
+          open={uploadHistoryOpen}
+          onClose={() => setUploadHistoryOpen(false)}
         />
 
         {/* Dynamic Content */}
