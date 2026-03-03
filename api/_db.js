@@ -49,6 +49,7 @@ const parseTidbUrl = (urlStr) => {
 let _pool = null;
 
 let _schemaEnsured = false;
+let _historySchemaEnsured = false;
 
 export const ensureBudgetRecordsTable = async (pool) => {
   if (_schemaEnsured) return;
@@ -77,6 +78,39 @@ export const ensureBudgetRecordsTable = async (pool) => {
     )
   `);
   _schemaEnsured = true;
+};
+
+export const ensureUploadHistoryTables = async (pool) => {
+  if (_historySchemaEnsured) return;
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS budget_upload_batches (
+      id VARCHAR(64) NOT NULL,
+      source VARCHAR(32) NULL,
+      received INT NOT NULL,
+      client_received INT NULL,
+      client_sent_unique INT NULL,
+      client_skipped_duplicates INT NULL,
+      affected_rows INT NULL,
+      note VARCHAR(255) NULL,
+      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_created_at (created_at)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS budget_upload_batch_items (
+      upload_id VARCHAR(64) NOT NULL,
+      record_id VARCHAR(191) NOT NULL,
+      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (upload_id, record_id),
+      KEY idx_record_id (record_id),
+      KEY idx_upload_created (upload_id, created_at)
+    )
+  `);
+
+  _historySchemaEnsured = true;
 };
 
 export const getPool = () => {
