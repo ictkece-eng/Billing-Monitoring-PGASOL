@@ -1,4 +1,4 @@
-import type { BudgetRecord } from '../types';
+import type { BudgetRecord, UploadHistoryEntry } from '../types';
 
 type UploadResponse = {
   ok: boolean;
@@ -18,6 +18,21 @@ type FetchResponse = {
 type ExistResponse = {
   ok: boolean;
   exists?: boolean[];
+  error?: string;
+};
+
+type UploadHistoryResponse = {
+  ok: boolean;
+  history?: UploadHistoryEntry[];
+  limit?: number;
+  offset?: number;
+  error?: string;
+};
+
+type DeleteUploadHistoryResponse = {
+  ok: boolean;
+  deletedItems?: number;
+  deletedBatches?: number;
   error?: string;
 };
 
@@ -162,7 +177,15 @@ export const uploadBudgetRecordsToTiDB = async (records: BudgetRecord[]) => {
   const res = await fetch('/api/budget-records/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ records: unique }),
+    body: JSON.stringify({
+      records: unique,
+      meta: {
+        // For upload-history logging (optional; backend remains compatible without it)
+        clientReceived: records.length,
+        clientSentUnique: unique.length,
+        clientSkippedDuplicates: skippedDuplicates,
+      },
+    }),
   });
 
   const data = (await res.json()) as UploadResponse;
@@ -174,6 +197,36 @@ export const uploadBudgetRecordsToTiDB = async (records: BudgetRecord[]) => {
     sentUnique: unique.length,
     skippedDuplicates,
   };
+};
+
+/**
+ * Fetch TiDB upload history batches.
+ * Non-breaking: returns [] if API is unavailable.
+ */
+export const fetchUploadHistoryFromTiDB = async (limit = 50, offset = 0): Promise<UploadHistoryEntry[]> => {
+  try {
+    const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    const res = await fetch(`/api/budget-records/upload-history?${qs.toString()}`);
+    const data = (await res.json()) as UploadHistoryResponse;
+    if (!res.ok || !data.ok) return [];
+    return Array.isArray(data.history) ? data.history : [];
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Delete ONE upload history batch (does not delete budget_records).
+ */
+export const deleteUploadHistoryFromTiDB = async (id: string) => {
+  const res = await fetch(`/api/budget-records/upload-history/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  const data = (await res.json()) as DeleteUploadHistoryResponse;
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `Gagal delete history (HTTP ${res.status})`);
+  }
+  return data;
 };
 
 export const fetchBudgetRecordsFromTiDB = async (): Promise<BudgetRecord[]> => {
