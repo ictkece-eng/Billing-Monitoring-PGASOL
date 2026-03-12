@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { UploadHistoryEntry } from '../types';
-import { deleteUploadHistoryFromTiDB, fetchUploadHistoryFromTiDB } from '../services/tidbService';
+import { deleteUploadHistoryFromTiDB, fetchUploadHistoryFromTiDB, purgeAllTiDBData } from '../services/tidbService';
 
 interface UploadHistoryModalProps {
   open: boolean;
@@ -26,6 +26,7 @@ const UploadHistoryModal: React.FC<UploadHistoryModalProps> = ({ open, onClose }
   const [rows, setRows] = useState<UploadHistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [purging, setPurging] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -63,7 +64,7 @@ const UploadHistoryModal: React.FC<UploadHistoryModalProps> = ({ open, onClose }
   if (!open) return null;
 
   const handleDelete = async (id: string) => {
-    if (busyId) return;
+    if (busyId || purging) return;
     const ok = confirm(
       'Yakin hapus history upload ini?\n\nCatatan: ini hanya menghapus RIWAYAT upload, tidak menghapus data budget_records di TiDB.'
     );
@@ -77,6 +78,35 @@ const UploadHistoryModal: React.FC<UploadHistoryModalProps> = ({ open, onClose }
       alert(`Gagal menghapus history: ${String(e?.message || e)}`);
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handlePurgeAll = async () => {
+    if (loading || busyId || purging) return;
+
+    const ok1 = confirm(
+      'PERINGATAN KERAS!\n\nAksi ini akan MENGHAPUS SEMUA DATA di TiDB yang dipakai aplikasi ini, termasuk:\n- budget_records (data utama)\n- budget_upload_batches (history)\n- budget_upload_batch_items\n\nLanjutkan?'
+    );
+    if (!ok1) return;
+
+    const phrase = prompt('Ketik persis: HAPUS SEMUA', '');
+    if (phrase !== 'HAPUS SEMUA') {
+      alert('Dibatalkan. Teks konfirmasi tidak cocok.');
+      return;
+    }
+
+    setPurging(true);
+    try {
+      const r = await purgeAllTiDBData();
+      // Refresh history table (will become empty)
+      await load();
+      alert(
+        `Berhasil purge data TiDB.\n\nDeleted budget_records: ${r.deletedRecords ?? 0}\nDeleted history batches: ${r.deletedBatches ?? 0}\nDeleted history items: ${r.deletedItems ?? 0}`
+      );
+    } catch (e: any) {
+      alert(`Gagal purge data TiDB: ${String(e?.message || e)}`);
+    } finally {
+      setPurging(false);
     }
   };
 
@@ -99,20 +129,37 @@ const UploadHistoryModal: React.FC<UploadHistoryModalProps> = ({ open, onClose }
               </span>
               <button
                 onClick={load}
-                disabled={loading}
+                disabled={loading || purging}
                 className={`text-[10px] font-bold uppercase tracking-widest rounded-full px-2 py-1 border tabular-nums transition-colors ${
-                  loading
+                  loading || purging
                     ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                 }`}
                 title="Refresh"
               >
-                {loading ? 'Loading…' : 'Refresh'}
+                {loading ? 'Loading…' : purging ? 'Purging…' : 'Refresh'}
+              </button>
+
+              <button
+                onClick={handlePurgeAll}
+                disabled={loading || purging || Boolean(busyId)}
+                className={`text-[10px] font-black uppercase tracking-widest rounded-full px-2 py-1 border tabular-nums transition-colors ${
+                  loading || purging || Boolean(busyId)
+                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                }`}
+                title="Hapus semua data TiDB (berbahaya)"
+              >
+                Hapus Semua Data
               </button>
             </div>
             <p className="mt-2 text-[10px] text-slate-500">
               Riwayat ini dicatat saat tombol <span className="font-semibold">Upload TiDB</span> dipakai. Aksi delete di sini hanya
               menghapus riwayat, tidak menghapus data transaksi yang sudah tersimpan.
+            </p>
+            <p className="mt-1 text-[10px] text-rose-700">
+              Tombol <span className="font-semibold">Hapus Semua Data</span> akan menghapus <span className="font-semibold">budget_records</span>
+              dan history. Pakai hanya jika benar-benar ingin reset database.
             </p>
           </div>
 
