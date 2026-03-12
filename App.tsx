@@ -888,31 +888,31 @@ const App: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-sm ring-1 ring-white/20">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-none">Budget Monitoring</h1>
+                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">Budget Monitoring</h1>
                 <p className="text-xs text-slate-500 font-medium mt-1 uppercase tracking-wider">Asset Management & Cost Control</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <ExcelImport onImport={handleImportExcel} />
                 <button
                   onClick={handleUploadToTiDB}
                   disabled={tidbUploading}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${
                     tidbUploading
-                      ? 'bg-slate-300 text-slate-600 cursor-not-allowed shadow-slate-100'
-                      : 'bg-violet-600 hover:bg-violet-700 text-white shadow-violet-100'
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                      : 'bg-violet-600 hover:bg-violet-700 text-white'
                   }`}
                   title="Upload data yang sudah ada di aplikasi ke database TiDB (butuh TiDB API server)"
                 >
@@ -923,7 +923,7 @@ const App: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setUploadHistoryOpen(true)}
-                  className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-slate-100"
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
                   title="Lihat riwayat upload ke TiDB (dan hapus riwayatnya jika perlu)"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -933,7 +933,7 @@ const App: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setIsInputOpen(true)}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-blue-100"
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -943,7 +943,7 @@ const App: React.FC = () => {
               </div>
 
               {/* Menu: Tabel dibuat halaman tersendiri (tidak digabung di beranda) */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
                 <button
                   onClick={() => setActivePage('home')}
                   className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'home' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
@@ -960,7 +960,7 @@ const App: React.FC = () => {
 
               {/* Submenu khusus halaman Tabel */}
               {activePage === 'tables' && (
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
                   <button
                     onClick={() => setActiveTableTab('pivot')}
                     className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTableTab === 'pivot' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
@@ -978,7 +978,7 @@ const App: React.FC = () => {
 
               {/* Tabs khusus beranda */}
               {activePage === 'home' && (
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
                   <button
                     onClick={() => setActiveTab('dashboard')}
                     className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
@@ -995,14 +995,14 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Controls & Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Filter Periode</label>
               <div className="relative">
                 <select
                   value={filterPeriode}
                   onChange={(e) => setFilterPeriode(e.target.value)}
-                  className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-blue-500 focus:border-blue-500 p-2 pr-9"
+                  className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 p-2.5 pr-10"
                 >
                   {periodes.map(p => (
                     <option key={p.value} value={p.value}>{p.label}</option>
@@ -1026,7 +1026,7 @@ const App: React.FC = () => {
                   placeholder="Cari Nama, Tim, No RO..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-blue-500 focus:border-blue-500 p-2 pl-9 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 p-2.5 pl-10 outline-none"
                 />
                 <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1035,7 +1035,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-xl text-white shadow-xl relative overflow-hidden group">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden group ring-1 ring-white/10">
             <div className="absolute -right-6 -bottom-6 opacity-20 group-hover:scale-110 transition-transform duration-500">
                 <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>
             </div>
@@ -1067,7 +1067,7 @@ const App: React.FC = () => {
 
                     <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
                       <div
-                        className="bg-slate-50 border border-slate-200 rounded-xl p-5 min-w-[280px] w-max flex-none cursor-pointer hover:shadow-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        className="bg-slate-50 border border-slate-200 rounded-2xl p-5 min-w-[280px] w-max flex-none cursor-pointer shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                         role="button"
                         tabIndex={0}
                         title="Klik untuk melihat Ringkasan Status2 (berdasarkan filter aktif)"
@@ -1086,7 +1086,7 @@ const App: React.FC = () => {
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
                         </p>
                       </div>
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
                         <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
                         <p className="text-xl font-black text-emerald-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
                         <p className="text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
@@ -1094,7 +1094,7 @@ const App: React.FC = () => {
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
                         </p>
                       </div>
-                      <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
                         <p className="text-[11px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
                         <p className="text-xl font-black text-rose-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
                         <p className="text-[12px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
@@ -1102,7 +1102,7 @@ const App: React.FC = () => {
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
                         </p>
                       </div>
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 min-w-[280px] w-max flex-none">
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
                         <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">Prokrosa Durasi Contract</p>
                         <p className="text-xl font-black text-indigo-900 mt-1 tabular-nums tracking-tight">
                           {estimatedMonthsRemaining === null
