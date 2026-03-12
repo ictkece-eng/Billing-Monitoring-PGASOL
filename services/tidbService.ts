@@ -36,6 +36,14 @@ type DeleteUploadHistoryResponse = {
   error?: string;
 };
 
+type PurgeResponse = {
+  ok: boolean;
+  deletedItems?: number;
+  deletedBatches?: number;
+  deletedRecords?: number;
+  error?: string;
+};
+
 const safeStr = (v: unknown) => (v === undefined || v === null ? '' : String(v));
 const safeInt = (v: unknown) => {
   if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
@@ -225,6 +233,20 @@ export const deleteUploadHistoryFromTiDB = async (id: string) => {
   const data = (await res.json()) as DeleteUploadHistoryResponse;
   if (!res.ok || !data.ok) {
     throw new Error(data.error || `Gagal delete history (HTTP ${res.status})`);
+  }
+  return data;
+};
+
+/**
+ * DANGEROUS: Purge ALL TiDB data used by this app (budget_records + upload history).
+ */
+export const purgeAllTiDBData = async () => {
+  const res = await fetch('/api/budget-records/purge?confirm=1', {
+    method: 'DELETE',
+  });
+  const data = (await res.json()) as PurgeResponse;
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `Gagal purge data (HTTP ${res.status})`);
   }
   return data;
 };
