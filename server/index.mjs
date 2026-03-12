@@ -237,6 +237,53 @@ app.delete('/api/budget-records/upload-history/:id', async (req, res) => {
   }
 });
 
+// DANGEROUS: purge ALL app data in TiDB.
+// Safety latch: require ?confirm=1.
+app.delete('/api/budget-records/purge', async (req, res) => {
+  const confirm = String(req.query?.confirm ?? '').trim();
+  if (confirm !== '1') {
+    res.status(400).json({ ok: false, error: 'Konfirmasi diperlukan. Panggil dengan ?confirm=1' });
+    return;
+  }
+
+  try {
+    await ensureBudgetRecordsTable();
+    await ensureUploadHistoryTables();
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [r1] = await conn.query('DELETE FROM budget_upload_batch_items');
+      const [r2] = await conn.query('DELETE FROM budget_upload_batches');
+      const [r3] = await conn.query('DELETE FROM budget_records');
+
+      await conn.commit();
+      res.json({
+        ok: true,
+        deletedItems: Number(r1?.affectedRows || 0),
+        deletedBatches: Number(r2?.affectedRows || 0),
+        deletedRecords: Number(r3?.affectedRows || 0),
+      });
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch {
+        // ignore
+      }
+      throw e;
+    } finally {
+      try {
+        conn.release();
+      } catch {
+        // ignore
+      }
+    }
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
 app.post('/api/budget-records/upload', async (req, res) => {
   const input = req.body?.records;
   if (!Array.isArray(input)) {
