@@ -156,6 +156,7 @@ const App: React.FC = () => {
   const ROLE_STORAGE_KEY = 'pgasol.role.v1';
   // IMPORTANT: use direct access so Vite can statically replace the value at build time.
   const configuredToolsPin = String(import.meta.env.VITE_TOOLS_PIN ?? '').trim();
+  const configuredViewerPin = String(import.meta.env.VITE_VIEWER_PIN ?? '').trim();
   const isLocalhost = () => {
     try {
       const h = window.location.hostname;
@@ -200,10 +201,11 @@ const App: React.FC = () => {
   };
 
   const isViewer = role === 'viewer' && !toolsUnlocked;
+  const isAuthenticated = role !== 'unknown';
 
   // Masked PIN modal (replaces window.prompt so PIN isn't visible while typing)
   const [pinModalOpen, setPinModalOpen] = useState(false);
-  const [pinModalSource, setPinModalSource] = useState<'shortcut' | 'url' | 'hash' | 'gesture' | 'manual'>('manual');
+  const [pinModalSource, setPinModalSource] = useState<'shortcut' | 'url' | 'hash' | 'gesture' | 'manual' | 'startup'>('manual');
   const [pinValue, setPinValue] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
   const pinInputRef = useRef<HTMLInputElement | null>(null);
@@ -243,10 +245,8 @@ const App: React.FC = () => {
   };
 
   const dismissPinModal = () => {
-    // On first launch, dismissing PIN modal means "viewer".
-    if (pinModalSource === 'startup') {
-      setRolePersisted('viewer');
-    }
+    // Startup modal is not dismissible (must login).
+    if (pinModalSource === 'startup') return;
     closePinModal();
   };
 
@@ -262,20 +262,30 @@ const App: React.FC = () => {
       return;
     }
 
-    if (entered !== configuredToolsPin) {
-      setPinError('PIN salah.');
+    // Determine role by PIN value (no explicit viewer/admin choice in UI).
+    // Admin PIN: VITE_TOOLS_PIN
+    // Viewer PIN: VITE_VIEWER_PIN
+    if (configuredToolsPin && entered === configuredToolsPin) {
+      setRolePersisted('admin');
+      setToolsUnlockedPersisted(true);
+      closePinModal();
       return;
     }
 
-    setRolePersisted('admin');
-    setToolsUnlockedPersisted(true);
-    closePinModal();
+    if (configuredViewerPin && entered === configuredViewerPin) {
+      setRolePersisted('viewer');
+      setToolsUnlockedPersisted(false);
+      closePinModal();
+      return;
+    }
+
+    setPinError('PIN salah.');
   };
 
   const requestToolsUnlock = (source: 'shortcut' | 'url' | 'hash' | 'gesture' | 'manual' = 'manual') => {
     if (toolsUnlocked) return;
 
-    // If PIN is not configured, only allow unlock on localhost to keep production safe by default.
+    // Admin PIN not configured: only allow unlock on localhost to keep production safe by default.
     if (!configuredToolsPin) {
       if (!isLocalhost()) {
         alert('Menu admin dikunci. PIN belum dikonfigurasi (VITE_TOOLS_PIN).');
@@ -330,7 +340,7 @@ const App: React.FC = () => {
 
   // Startup behavior: show PIN popup immediately on first open (role unknown).
   // - Admin enters PIN to unlock
-  // - Viewer can dismiss to continue without admin menus
+  // - Viewer enters PIN to continue in viewer mode
   useEffect(() => {
     if (toolsUnlocked) return;
     if (role !== 'unknown') return;
@@ -500,7 +510,7 @@ const App: React.FC = () => {
     if (data.length === 0) return [{ value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL }];
 
     const keys = Array.from(
-      new Set(
+      new Set<string>(
         data
           .map(d => normalizePeriodeToYearMonthKey(d.periode))
           .filter((k): k is string => Boolean(k))
@@ -722,7 +732,7 @@ const App: React.FC = () => {
   }, [filteredData]);
 
   // Stats per status2 (dynamic): sum + count
-  const status2Stats = useMemo(() => {
+  const status2Stats = useMemo<Record<string, { sum: number; count: number }>>(() => {
     const stats: Record<string, { sum: number; count: number }> = {};
     for (const item of filteredData) {
       const key = normalizeStatus2Key(canonicalizeStatus2(item.status2)) || 'manual';
@@ -741,7 +751,8 @@ const App: React.FC = () => {
   // Integrity check: sum of all status2 cards should equal the Grand Total Tagihan (for current filteredData).
   // If there is a mismatch, it indicates data issues (e.g., NaN/Infinity, unexpected parsing) rather than UI math.
   const status2CardsTotal = useMemo(() => {
-    return Object.values(status2Stats).reduce((acc, s) => acc + safeAmount(s?.sum), 0);
+    const vals = Object.values(status2Stats) as Array<{ sum: number; count: number }>;
+    return vals.reduce<number>((acc, s) => acc + safeAmount(s.sum), 0);
   }, [status2Stats]);
 
   const status2CardsDiff = useMemo(() => {
@@ -1159,172 +1170,156 @@ const App: React.FC = () => {
   }, [filteredData]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-vh-100 bg-body-tertiary">
       {pinModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <button aria-label="Tutup" className="absolute inset-0 cursor-default" onClick={dismissPinModal} />
+        <>
+          {/* Backdrop */}
+          <div
+            className={`modal-backdrop fade show ${pinModalSource === 'startup' ? '' : ''}`}
+            onClick={pinModalSource === 'startup' ? undefined : dismissPinModal}
+            style={{ cursor: pinModalSource === 'startup' ? 'default' : 'pointer' }}
+          />
 
-          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="text-sm font-black text-slate-900 leading-tight truncate" title="Buka Menu Admin">
-                  Buka Menu Admin
-                </h3>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  Masukkan PIN untuk membuka <span className="font-semibold">Import/Upload TiDB</span>.
-                  <span className="ml-1 text-slate-400">(Source: {pinModalSource})</span>
-                </p>
+          {/* Modal */}
+          <div className="modal fade show d-block" role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered" role="document">
+              <div className="modal-content border-0 shadow">
+                <div className="modal-header">
+                  <div className="d-flex flex-column">
+                    <h5 className="modal-title fw-black mb-0">Login</h5>
+                    <small className="text-muted">Masukkan PIN untuk masuk.</small>
+                  </div>
+                  {pinModalSource !== 'startup' && (
+                    <button
+                      type="button"
+                      className="btn-close"
+                      aria-label="Tutup"
+                      title="Tutup (Esc)"
+                      onClick={dismissPinModal}
+                    />
+                  )}
+                </div>
+
+                <div className="modal-body">
+                  <label className="form-label small text-uppercase text-muted fw-bold">PIN</label>
+                  <input
+                    ref={pinInputRef}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="current-password"
+                    className={`form-control ${pinError ? 'is-invalid' : ''}`}
+                    placeholder="••••••"
+                    value={pinValue}
+                    onChange={(e) => {
+                      setPinError(null);
+                      setPinValue(e.target.value);
+                    }}
+                  />
+                  {pinError && <div className="invalid-feedback d-block">{pinError}</div>}
+
+                  {pinModalSource !== 'startup' && (
+                    <div className="mt-2 small text-muted">
+                      Tips: <span className="fw-semibold">Ctrl+Shift+L</span> untuk mengunci lagi.
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  {pinModalSource !== 'startup' && (
+                    <button type="button" className="btn btn-outline-secondary" onClick={closePinModal}>
+                      Batal
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={submitPinModal}>
+                    Masuk
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={dismissPinModal}
-                className="flex-none inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600"
-                aria-label="Tutup"
-                title="Tutup (Esc)"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="px-5 py-5">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                PIN
-              </label>
-              <input
-                ref={pinInputRef}
-                type="password"
-                inputMode="numeric"
-                autoComplete="current-password"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 p-2.5 outline-none"
-                placeholder="••••••"
-                value={pinValue}
-                onChange={(e) => {
-                  setPinError(null);
-                  setPinValue(e.target.value);
-                }}
-              />
-              {pinError && <div className="mt-2 text-[11px] font-bold text-rose-700">{pinError}</div>}
-
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // On startup, "Batal" means continue as viewer.
-                    if (pinModalSource === 'startup') {
-                      setRolePersisted('viewer');
-                      closePinModal();
-                      return;
-                    }
-                    closePinModal();
-                  }}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  {pinModalSource === 'startup' ? 'Lanjut (Viewer)' : 'Batal'}
-                </button>
-                <button
-                  type="button"
-                  onClick={submitPinModal}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 text-sm font-black text-white hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
-                >
-                  Buka
-                </button>
-              </div>
-
-              <p className="mt-3 text-[10px] text-slate-500">
-                Tips: <span className="font-semibold">Ctrl+Shift+L</span> untuk mengunci lagi.
-              </p>
             </div>
           </div>
-        </div>
+        </>
       )}
 
-      {isInputOpen && (
-        <BudgetInputForm 
-          onAdd={handleAddRecord} 
-          onClose={() => setIsInputOpen(false)} 
-        />
-      )}
+      {/* On first open (unauthenticated), show ONLY the login modal (no app UI/data behind). */}
+      {!isAuthenticated ? null : (
+        <>
+          {isInputOpen && (
+            <BudgetInputForm 
+              onAdd={handleAddRecord} 
+              onClose={() => setIsInputOpen(false)} 
+            />
+          )}
 
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-sm ring-1 ring-white/20"
-                onClick={bumpToolsGesture}
-              >
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div>
-                <h1
-                  className="text-xl font-extrabold text-slate-900 tracking-tight leading-none"
-                  onDoubleClick={() => requestToolsUnlock('gesture')}
-                >
-                  Budget Monitoring
-                </h1>
-                <p className="text-xs text-slate-500 font-medium mt-1 uppercase tracking-wider">Asset Management & Cost Control</p>
-              </div>
-            </div>
+          {/* Header */}
+          <header className="sticky-top border-bottom bg-white shadow-sm">
+            <div className="container py-3">
+              <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                <div className="d-flex align-items-center gap-3">
+                  <div
+                    className="rounded-3 bg-primary bg-gradient text-white d-inline-flex align-items-center justify-content-center"
+                    onClick={bumpToolsGesture}
+                    style={{ width: 44, height: 44 }}
+                  >
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h1
+                      className="h5 fw-black mb-0 text-dark"
+                      onDoubleClick={() => requestToolsUnlock('gesture')}
+                    >
+                      Budget Monitoring
+                    </h1>
+                    <div className="small text-muted text-uppercase" style={{ letterSpacing: '.08em' }}>Asset Management & Cost Control</div>
+                  </div>
+                </div>
 
-            {!isViewer && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
+                {!isViewer && (
+                <div className="d-flex flex-wrap align-items-center gap-2">
+              <div className="d-flex flex-wrap align-items-center gap-2">
                 {toolsUnlocked && <ExcelImport onImport={handleImportExcel} />}
                 {toolsUnlocked && (
                   <button
                     onClick={handleUploadToTiDB}
                     disabled={tidbUploading}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${
-                      tidbUploading
-                        ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                        : 'bg-violet-600 hover:bg-violet-700 text-white'
-                    }`}
+                    className={`btn ${tidbUploading ? 'btn-secondary disabled' : 'btn-primary'}`}
                     title="Upload data yang sudah ada di aplikasi ke database TiDB (butuh TiDB API server)"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
+                    <i className="bi bi-cloud-arrow-up me-2" aria-hidden="true" />
                     {tidbUploading ? 'Uploading...' : 'Upload TiDB'}
                   </button>
                 )}
                 {toolsUnlocked && (
                   <button
                     onClick={() => setUploadHistoryOpen(true)}
-                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
+                    className="btn btn-dark"
                     title="Lihat riwayat upload ke TiDB (dan hapus riwayatnya jika perlu)"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v5l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <i className="bi bi-clock-history me-2" aria-hidden="true" />
                     History Upload
                   </button>
                 )}
                 <button
                   onClick={() => setIsInputOpen(true)}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
+                  className="btn btn-success"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                  </svg>
+                  <i className="bi bi-plus-lg me-2" aria-hidden="true" />
                   Tambah Data
                 </button>
               </div>
 
               {/* Menu: Tabel dibuat halaman tersendiri (tidak digabung di beranda) */}
-              <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
+              <div className="btn-group" role="group" aria-label="Navigasi">
                 <button
                   onClick={() => setActivePage('home')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'home' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`btn btn-sm ${activePage === 'home' ? 'btn-primary' : 'btn-outline-primary'}`}
                 >
                   Beranda
                 </button>
                 <button
                   onClick={() => setActivePage('tables')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activePage === 'tables' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`btn btn-sm ${activePage === 'tables' ? 'btn-primary' : 'btn-outline-primary'}`}
                 >
                   Tabel Excel
                 </button>
@@ -1332,16 +1327,16 @@ const App: React.FC = () => {
 
               {/* Submenu khusus halaman Tabel */}
               {activePage === 'tables' && (
-                <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
+                <div className="btn-group" role="group" aria-label="Tab tabel">
                   <button
                     onClick={() => setActiveTableTab('pivot')}
-                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTableTab === 'pivot' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`btn btn-sm ${activeTableTab === 'pivot' ? 'btn-secondary' : 'btn-outline-secondary'}`}
                   >
                     Pivot Rekap
                   </button>
                   <button
                     onClick={() => setActiveTableTab('raw')}
-                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTableTab === 'raw' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`btn btn-sm ${activeTableTab === 'raw' ? 'btn-secondary' : 'btn-outline-secondary'}`}
                   >
                     Database Transaksi
                   </button>
@@ -1350,75 +1345,75 @@ const App: React.FC = () => {
 
               {/* Tabs khusus beranda */}
               {activePage === 'home' && (
-                <div className="flex items-center gap-1 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
+                <div className="btn-group" role="group" aria-label="Tab beranda">
                   <button
                     onClick={() => setActiveTab('dashboard')}
-                    className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`btn btn-sm ${activeTab === 'dashboard' ? 'btn-info text-white' : 'btn-outline-info'}`}
                   >
                     Visualisasi
                   </button>
                 </div>
               )}
             </div>
-            )}
-          </div>
-        </div>
-      </header>
+                )}
+              </div>
+            </div>
+          </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="container py-4">
         {/* Controls & Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Filter Periode</label>
-              <div className="relative">
+        <div className="row g-4 mb-4">
+          <div className="col-12 col-md-6">
+            <div className="card shadow-sm border-0">
+              <div className="card-body">
+                <div className="row g-3">
+                  <div className="col-12">
+                    <label className="form-label small text-uppercase text-muted fw-bold">Filter Periode</label>
                 <select
                   value={filterPeriode}
                   onChange={(e) => setFilterPeriode(e.target.value)}
-                  className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 p-2.5 pr-10"
+                  className="form-select"
                 >
                   {periodes.map(p => (
                     <option key={p.value} value={p.value}>{p.label}</option>
                   ))}
                 </select>
-                <svg
-                  className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pencarian Cepat</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Cari Nama, Tim, No RO..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 p-2.5 pl-10 outline-none"
-                />
-                <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label small text-uppercase text-muted fw-bold">Pencarian Cepat</label>
+                    <div className="input-group">
+                      <span className="input-group-text"><i className="bi bi-search" aria-hidden="true" /></span>
+                      <input
+                        type="text"
+                        placeholder="Cari Nama, Tim, No RO..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="form-control"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden group ring-1 ring-white/10">
-            <div className="absolute -right-6 -bottom-6 opacity-20 group-hover:scale-110 transition-transform duration-500">
-                <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>
-            </div>
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-1">Grand Total Tagihan</p>
-            <h2 className="text-3xl font-black mb-1 safe-number-tight tabular-nums tracking-tight" title={formatCurrency(totalValue)}>{formatCurrency(totalValue)}</h2>
-            <div className="flex items-center gap-2 mt-2">
-                <span className="bg-white/20 text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">
-                  {filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}
-                </span>
-                {searchQuery && <span className="text-[9px] opacity-70 italic truncate">Filtered by "{searchQuery}"</span>}
+          <div className="col-12 col-md-6">
+            <div className="card shadow-sm border-0 text-bg-primary bg-gradient">
+              <div className="card-body position-relative overflow-hidden">
+                <div className="position-absolute end-0 bottom-0 opacity-25" style={{ transform: 'translate(12px, 12px)' }}>
+                  <i className="bi bi-bar-chart-fill" style={{ fontSize: 96 }} aria-hidden="true" />
+                </div>
+                <div className="small text-uppercase fw-bold opacity-75">Grand Total Tagihan</div>
+                <div className="display-6 fw-black safe-number-tight tabular-nums" title={formatCurrency(totalValue)}>
+                  {formatCurrency(totalValue)}
+                </div>
+                <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+                  <span className="badge text-bg-light">
+                    {filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}
+                  </span>
+                  {searchQuery && <span className="small opacity-75 fst-italic text-truncate">Filtered by "{searchQuery}"</span>}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1676,6 +1671,8 @@ const App: React.FC = () => {
             <p className="text-[10px] text-slate-400 font-medium">© 2025 Corporate Asset Management. All rights reserved.</p>
         </div>
       </footer>
+        </>
+      )}
     </div>
   );
 };
