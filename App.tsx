@@ -149,6 +149,132 @@ const App: React.FC = () => {
   const [tidbUploading, setTidbUploading] = useState(false);
   const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
 
+  // Hide admin-only tools (Excel import + TiDB upload/history) from public UI.
+  // NOTE: This is intentionally "security by obscurity" at the UI level.
+  // Real protection must be enforced server-side.
+  const TOOLS_UNLOCK_STORAGE_KEY = 'pgasol.toolsUnlocked.v1';
+  const configuredToolsPin = String((import.meta as any)?.env?.VITE_TOOLS_PIN ?? '').trim();
+  const isLocalhost = () => {
+    try {
+      const h = window.location.hostname;
+      return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
+    } catch {
+      return false;
+    }
+  };
+
+  const [toolsUnlocked, setToolsUnlocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(TOOLS_UNLOCK_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const setToolsUnlockedPersisted = (next: boolean) => {
+    setToolsUnlocked(next);
+    try {
+      if (next) localStorage.setItem(TOOLS_UNLOCK_STORAGE_KEY, '1');
+      else localStorage.removeItem(TOOLS_UNLOCK_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  const lockTools = () => {
+    if (!toolsUnlocked) return;
+    setToolsUnlockedPersisted(false);
+  };
+
+  const requestToolsUnlock = (source: 'shortcut' | 'url' | 'hash' | 'gesture' | 'manual' = 'manual') => {
+    if (toolsUnlocked) return;
+
+    // If PIN is not configured, only allow unlock on localhost to keep production safe by default.
+    if (!configuredToolsPin) {
+      if (!isLocalhost()) {
+        alert('Menu admin dikunci. PIN belum dikonfigurasi (VITE_TOOLS_PIN).');
+        return;
+      }
+      setToolsUnlockedPersisted(true);
+      return;
+    }
+
+    const pin = prompt(
+      `Masukkan PIN untuk membuka menu admin (Import/Upload TiDB).\n\nTips: Ctrl+Shift+L untuk mengunci lagi.\nSource: ${source}`,
+      ''
+    );
+    if (pin === null) return;
+    if (String(pin).trim() !== configuredToolsPin) {
+      alert('PIN salah.');
+      return;
+    }
+    setToolsUnlockedPersisted(true);
+  };
+
+  // Allow a hidden access path via URL:
+  // - ?tools=1 (will prompt for PIN)
+  // - ?tools=1&pin=XXXX (auto unlock when pin matches)
+  // - #tools (will prompt for PIN)
+  // After unlock attempt, scrub query params to avoid leaving PIN in the URL.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const toolsParam = String(url.searchParams.get('tools') ?? '').toLowerCase();
+      const pinParam = url.searchParams.get('pin');
+      const wantsTools = toolsParam === '1' || toolsParam === 'true' || toolsParam === 'on' || toolsParam === 'yes';
+      const wantsToolsViaHash = String(window.location.hash ?? '').toLowerCase() === '#tools';
+
+      if (wantsTools || wantsToolsViaHash) {
+        if (!toolsUnlocked) {
+          if (configuredToolsPin && pinParam && String(pinParam).trim() === configuredToolsPin) {
+            setToolsUnlockedPersisted(true);
+          } else if (!configuredToolsPin && isLocalhost()) {
+            setToolsUnlockedPersisted(true);
+          } else {
+            queueMicrotask(() => requestToolsUnlock(wantsTools ? 'url' : 'hash'));
+          }
+        }
+
+        if (wantsTools || pinParam) {
+          url.searchParams.delete('tools');
+          url.searchParams.delete('pin');
+          const next = `${url.pathname}${url.search}${url.hash}`;
+          window.history.replaceState({}, '', next);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keyboard shortcut:
+  // - Ctrl+Shift+U => unlock (ask PIN)
+  // - Ctrl+Shift+L => lock
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const combo = (e.ctrlKey || e.metaKey) && e.shiftKey;
+      if (!combo) return;
+      const k = String(e.key || '').toLowerCase();
+      if (k === 'u') {
+        e.preventDefault();
+        requestToolsUnlock('shortcut');
+      }
+      if (k === 'l') {
+        e.preventDefault();
+        lockTools();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toolsUnlocked]);
+
+  // Safety: if tools get locked while a modal is open, close it.
+  useEffect(() => {
+    if (!toolsUnlocked) setUploadHistoryOpen(false);
+  }, [toolsUnlocked]);
+
   // UX: ringkasan status2 ditampilkan hanya saat user klik kartu "Terserap".
   const [showStatus2Summary, setShowStatus2Summary] = useState(false);
 
@@ -157,6 +283,42 @@ const App: React.FC = () => {
   const [status2ModalLabel, setStatus2ModalLabel] = useState<string>('');
 
   const status2SummaryRef = useRef<HTMLDivElement | null>(null);
+
+  // Hidden gesture: click the app logo 7x quickly to open tools unlock prompt.
+  // This avoids showing admin menus publicly while still allowing access when needed.
+  const toolsGestureRef = useRef<{ count: number; startedAt: number; timer: ReturnType<typeof setTimeout> | null }>(
+    { count: 0, startedAt: 0, timer: null }
+  );
+
+  const bumpToolsGesture = () => {
+    const now = Date.now();
+    const g = toolsGestureRef.current;
+
+    // Reset window if too slow
+    if (!g.startedAt || now - g.startedAt > 2500) {
+      g.count = 0;
+      g.startedAt = now;
+    }
+
+    g.count += 1;
+
+    // Auto-reset after the window ends
+    if (g.timer) window.clearTimeout(g.timer);
+    g.timer = window.setTimeout(() => {
+      g.count = 0;
+      g.startedAt = 0;
+      g.timer = null;
+    }, 2500);
+
+    if (g.count >= 7) {
+      // consume gesture
+      g.count = 0;
+      g.startedAt = 0;
+      if (g.timer) window.clearTimeout(g.timer);
+      g.timer = null;
+      requestToolsUnlock('gesture');
+    }
+  };
 
   const scrollToStatus2Summary = () => {
     // Pastikan section-nya sudah dirender dulu sebelum scroll.
@@ -892,45 +1054,57 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-sm ring-1 ring-white/20">
+              <div
+                className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-sm ring-1 ring-white/20"
+                onClick={bumpToolsGesture}
+              >
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">Budget Monitoring</h1>
+                <h1
+                  className="text-xl font-extrabold text-slate-900 tracking-tight leading-none"
+                  onDoubleClick={() => requestToolsUnlock('gesture')}
+                >
+                  Budget Monitoring
+                </h1>
                 <p className="text-xs text-slate-500 font-medium mt-1 uppercase tracking-wider">Asset Management & Cost Control</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                <ExcelImport onImport={handleImportExcel} />
-                <button
-                  onClick={handleUploadToTiDB}
-                  disabled={tidbUploading}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${
-                    tidbUploading
-                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                      : 'bg-violet-600 hover:bg-violet-700 text-white'
-                  }`}
-                  title="Upload data yang sudah ada di aplikasi ke database TiDB (butuh TiDB API server)"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  {tidbUploading ? 'Uploading...' : 'Upload TiDB'}
-                </button>
-                <button
-                  onClick={() => setUploadHistoryOpen(true)}
-                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
-                  title="Lihat riwayat upload ke TiDB (dan hapus riwayatnya jika perlu)"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v5l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  History Upload
-                </button>
+                {toolsUnlocked && <ExcelImport onImport={handleImportExcel} />}
+                {toolsUnlocked && (
+                  <button
+                    onClick={handleUploadToTiDB}
+                    disabled={tidbUploading}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md ${
+                      tidbUploading
+                        ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                        : 'bg-violet-600 hover:bg-violet-700 text-white'
+                    }`}
+                    title="Upload data yang sudah ada di aplikasi ke database TiDB (butuh TiDB API server)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    {tidbUploading ? 'Uploading...' : 'Upload TiDB'}
+                  </button>
+                )}
+                {toolsUnlocked && (
+                  <button
+                    onClick={() => setUploadHistoryOpen(true)}
+                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
+                    title="Lihat riwayat upload ke TiDB (dan hapus riwayatnya jika perlu)"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v5l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    History Upload
+                  </button>
+                )}
                 <button
                   onClick={() => setIsInputOpen(true)}
                   className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow-md"
