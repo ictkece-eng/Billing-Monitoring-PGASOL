@@ -172,6 +172,13 @@ const App: React.FC = () => {
     }
   });
 
+  // Masked PIN modal (replaces window.prompt so PIN isn't visible while typing)
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinModalSource, setPinModalSource] = useState<'shortcut' | 'url' | 'hash' | 'gesture' | 'manual'>('manual');
+  const [pinValue, setPinValue] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const pinInputRef = useRef<HTMLInputElement | null>(null);
+
   const setToolsUnlockedPersisted = (next: boolean) => {
     setToolsUnlocked(next);
     try {
@@ -187,6 +194,44 @@ const App: React.FC = () => {
     setToolsUnlockedPersisted(false);
   };
 
+  const openPinModal = (source: 'shortcut' | 'url' | 'hash' | 'gesture' | 'manual') => {
+    setPinModalSource(source);
+    setPinError(null);
+    setPinValue('');
+    setPinModalOpen(true);
+    // Focus input next tick
+    queueMicrotask(() => {
+      pinInputRef.current?.focus();
+    });
+  };
+
+  const closePinModal = () => {
+    setPinModalOpen(false);
+    setPinError(null);
+    setPinValue('');
+  };
+
+  const submitPinModal = () => {
+    if (toolsUnlocked) {
+      closePinModal();
+      return;
+    }
+
+    const entered = String(pinValue ?? '').trim();
+    if (!entered) {
+      setPinError('PIN wajib diisi.');
+      return;
+    }
+
+    if (entered !== configuredToolsPin) {
+      setPinError('PIN salah.');
+      return;
+    }
+
+    setToolsUnlockedPersisted(true);
+    closePinModal();
+  };
+
   const requestToolsUnlock = (source: 'shortcut' | 'url' | 'hash' | 'gesture' | 'manual' = 'manual') => {
     if (toolsUnlocked) return;
 
@@ -200,16 +245,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const pin = prompt(
-      `Masukkan PIN untuk membuka menu admin (Import/Upload TiDB).\n\nTips: Ctrl+Shift+L untuk mengunci lagi.\nSource: ${source}`,
-      ''
-    );
-    if (pin === null) return;
-    if (String(pin).trim() !== configuredToolsPin) {
-      alert('PIN salah.');
-      return;
-    }
-    setToolsUnlockedPersisted(true);
+    openPinModal(source);
   };
 
   // Allow a hidden access path via URL:
@@ -270,6 +306,24 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolsUnlocked]);
+
+  // Close PIN modal with Escape and allow Enter to submit.
+  useEffect(() => {
+    if (!pinModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePinModal();
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitPinModal();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinModalOpen, pinValue, toolsUnlocked, configuredToolsPin]);
 
   // Safety: if tools get locked while a modal is open, close it.
   useEffect(() => {
@@ -1043,6 +1097,77 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {pinModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <button aria-label="Tutup" className="absolute inset-0 cursor-default" onClick={closePinModal} />
+
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h3 className="text-sm font-black text-slate-900 leading-tight truncate" title="Buka Menu Admin">
+                  Buka Menu Admin
+                </h3>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Masukkan PIN untuk membuka <span className="font-semibold">Import/Upload TiDB</span>.
+                  <span className="ml-1 text-slate-400">(Source: {pinModalSource})</span>
+                </p>
+              </div>
+              <button
+                onClick={closePinModal}
+                className="flex-none inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600"
+                aria-label="Tutup"
+                title="Tutup (Esc)"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-5 py-5">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                PIN
+              </label>
+              <input
+                ref={pinInputRef}
+                type="password"
+                inputMode="numeric"
+                autoComplete="current-password"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 p-2.5 outline-none"
+                placeholder="••••••"
+                value={pinValue}
+                onChange={(e) => {
+                  setPinError(null);
+                  setPinValue(e.target.value);
+                }}
+              />
+              {pinError && <div className="mt-2 text-[11px] font-bold text-rose-700">{pinError}</div>}
+
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={closePinModal}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={submitPinModal}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 text-sm font-black text-white hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+                >
+                  Buka
+                </button>
+              </div>
+
+              <p className="mt-3 text-[10px] text-slate-500">
+                Tips: <span className="font-semibold">Ctrl+Shift+L</span> untuk mengunci lagi.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isInputOpen && (
         <BudgetInputForm 
           onAdd={handleAddRecord} 
