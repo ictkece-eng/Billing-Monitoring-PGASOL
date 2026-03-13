@@ -70,3 +70,8 @@ Set these in **Vercel → Project → Settings → Environment Variables** (do n
 Also set (if you use AI insight):
 
 - `GEMINI_API_KEY`
+
+Optional (admin tools UI lock):
+
+- `VITE_TOOLS_PIN` (contoh: `123456`) — dipakai untuk membuka menu tersembunyi (Impor Excel + Upload/History TiDB).
+   - Penting: ini dibaca oleh frontend (Vite), jadi harus diset sebagai env var di Vercel dan **re-deploy**.
