@@ -69,10 +69,15 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6">Top 5 Team Spending</h3>
-        <div className="h-80">
+    <div className="row g-4 mb-4">
+      <div className="col-12 col-lg-6">
+        <div className="card shadow-sm border-0 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Top 5 Team Spending</div>
+              <span className="badge text-bg-primary-subtle border border-primary-subtle text-primary">Chart</span>
+            </div>
+            <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={teamSpending.slice(0, 5)} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
@@ -86,12 +91,19 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6">Spending by Billing Status</h3>
-        <div className="h-80">
+      <div className="col-12 col-lg-6">
+        <div className="card shadow-sm border-0 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Spending by Billing Status</div>
+              <span className="badge text-bg-info-subtle border border-info-subtle text-info">Chart</span>
+            </div>
+            <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={statusDistributionForChart} layout="vertical" margin={{ top: 6, right: 28, bottom: 6, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
@@ -127,14 +139,16 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
-        <div className="flex flex-wrap gap-4 mt-2 justify-center">
-            {statusDistributionForChart.map((s, i) => (
-                <div key={s.name} className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                    <span className="text-[10px] text-slate-500 font-medium">{s.name}</span>
+            </div>
+            <div className="d-flex flex-wrap gap-3 justify-content-center mt-3">
+              {statusDistributionForChart.map((s, i) => (
+                <div key={s.name} className="d-flex align-items-center gap-2">
+                  <span className="d-inline-block rounded-circle" style={{ width: 10, height: 10, backgroundColor: COLORS[i % COLORS.length] }} />
+                  <small className="text-muted">{s.name}</small>
                 </div>
-            ))}
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
