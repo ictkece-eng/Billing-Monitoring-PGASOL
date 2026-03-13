@@ -153,6 +153,7 @@ const App: React.FC = () => {
   // NOTE: This is intentionally "security by obscurity" at the UI level.
   // Real protection must be enforced server-side.
   const TOOLS_UNLOCK_STORAGE_KEY = 'pgasol.toolsUnlocked.v1';
+  const ROLE_STORAGE_KEY = 'pgasol.role.v1';
   // IMPORTANT: use direct access so Vite can statically replace the value at build time.
   const configuredToolsPin = String(import.meta.env.VITE_TOOLS_PIN ?? '').trim();
   const isLocalhost = () => {
@@ -164,13 +165,41 @@ const App: React.FC = () => {
     }
   };
 
-  const [toolsUnlocked, setToolsUnlocked] = useState<boolean>(() => {
+  const readToolsUnlockedFromStorage = () => {
     try {
       return localStorage.getItem(TOOLS_UNLOCK_STORAGE_KEY) === '1';
     } catch {
       return false;
     }
+  };
+
+  const initialToolsUnlocked = readToolsUnlockedFromStorage();
+  const [toolsUnlocked, setToolsUnlocked] = useState<boolean>(initialToolsUnlocked);
+
+  type AppRole = 'unknown' | 'viewer' | 'admin';
+  const [role, setRole] = useState<AppRole>(() => {
+    // If tools already unlocked, treat as admin.
+    if (initialToolsUnlocked) return 'admin';
+    try {
+      const r = String(localStorage.getItem(ROLE_STORAGE_KEY) || '').trim().toLowerCase();
+      if (r === 'admin' || r === 'viewer') return r as AppRole;
+    } catch {
+      // ignore
+    }
+    return 'unknown';
   });
+
+  const setRolePersisted = (next: AppRole) => {
+    setRole(next);
+    try {
+      if (next === 'unknown') localStorage.removeItem(ROLE_STORAGE_KEY);
+      else localStorage.setItem(ROLE_STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+  };
+
+  const isViewer = role === 'viewer' && !toolsUnlocked;
 
   // Masked PIN modal (replaces window.prompt so PIN isn't visible while typing)
   const [pinModalOpen, setPinModalOpen] = useState(false);
@@ -192,9 +221,11 @@ const App: React.FC = () => {
   const lockTools = () => {
     if (!toolsUnlocked) return;
     setToolsUnlockedPersisted(false);
+    // keep role as viewer after lock, so public UI stays minimal.
+    setRolePersisted('viewer');
   };
 
-  const openPinModal = (source: 'shortcut' | 'url' | 'hash' | 'gesture' | 'manual') => {
+  const openPinModal = (source: 'shortcut' | 'url' | 'hash' | 'gesture' | 'manual' | 'startup') => {
     setPinModalSource(source);
     setPinError(null);
     setPinValue('');
@@ -209,6 +240,14 @@ const App: React.FC = () => {
     setPinModalOpen(false);
     setPinError(null);
     setPinValue('');
+  };
+
+  const dismissPinModal = () => {
+    // On first launch, dismissing PIN modal means "viewer".
+    if (pinModalSource === 'startup') {
+      setRolePersisted('viewer');
+    }
+    closePinModal();
   };
 
   const submitPinModal = () => {
@@ -228,6 +267,7 @@ const App: React.FC = () => {
       return;
     }
 
+    setRolePersisted('admin');
     setToolsUnlockedPersisted(true);
     closePinModal();
   };
@@ -241,6 +281,7 @@ const App: React.FC = () => {
         alert('Menu admin dikunci. PIN belum dikonfigurasi (VITE_TOOLS_PIN).');
         return;
       }
+      setRolePersisted('admin');
       setToolsUnlockedPersisted(true);
       return;
     }
@@ -264,8 +305,10 @@ const App: React.FC = () => {
       if (wantsTools || wantsToolsViaHash) {
         if (!toolsUnlocked) {
           if (configuredToolsPin && pinParam && String(pinParam).trim() === configuredToolsPin) {
+            setRolePersisted('admin');
             setToolsUnlockedPersisted(true);
           } else if (!configuredToolsPin && isLocalhost()) {
+            setRolePersisted('admin');
             setToolsUnlockedPersisted(true);
           } else {
             queueMicrotask(() => requestToolsUnlock(wantsTools ? 'url' : 'hash'));
@@ -284,6 +327,17 @@ const App: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Startup behavior: show PIN popup immediately on first open (role unknown).
+  // - Admin enters PIN to unlock
+  // - Viewer can dismiss to continue without admin menus
+  useEffect(() => {
+    if (toolsUnlocked) return;
+    if (role !== 'unknown') return;
+    if (pinModalOpen) return;
+    openPinModal('startup');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, toolsUnlocked]);
 
   // Keyboard shortcut:
   // - Ctrl+Shift+U => unlock (ask PIN)
@@ -313,7 +367,7 @@ const App: React.FC = () => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        closePinModal();
+        dismissPinModal();
       }
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -329,6 +383,15 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!toolsUnlocked) setUploadHistoryOpen(false);
   }, [toolsUnlocked]);
+
+  // Viewer mode: keep the experience read-only & dashboard-only.
+  useEffect(() => {
+    if (!isViewer) return;
+    setActivePage('home');
+    setActiveTab('dashboard');
+    setIsInputOpen(false);
+    setUploadHistoryOpen(false);
+  }, [isViewer]);
 
   // UX: ringkasan status2 ditampilkan hanya saat user klik kartu "Terserap".
   const [showStatus2Summary, setShowStatus2Summary] = useState(false);
@@ -1099,7 +1162,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50">
       {pinModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <button aria-label="Tutup" className="absolute inset-0 cursor-default" onClick={closePinModal} />
+          <button aria-label="Tutup" className="absolute inset-0 cursor-default" onClick={dismissPinModal} />
 
           <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-start justify-between gap-4">
@@ -1113,7 +1176,7 @@ const App: React.FC = () => {
                 </p>
               </div>
               <button
-                onClick={closePinModal}
+                onClick={dismissPinModal}
                 className="flex-none inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600"
                 aria-label="Tutup"
                 title="Tutup (Esc)"
@@ -1146,10 +1209,18 @@ const App: React.FC = () => {
               <div className="mt-4 flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={closePinModal}
+                  onClick={() => {
+                    // On startup, "Batal" means continue as viewer.
+                    if (pinModalSource === 'startup') {
+                      setRolePersisted('viewer');
+                      closePinModal();
+                      return;
+                    }
+                    closePinModal();
+                  }}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  Batal
+                  {pinModalSource === 'startup' ? 'Lanjut (Viewer)' : 'Batal'}
                 </button>
                 <button
                   type="button"
@@ -1199,6 +1270,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {!isViewer && (
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 {toolsUnlocked && <ExcelImport onImport={handleImportExcel} />}
@@ -1288,6 +1360,7 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </header>
