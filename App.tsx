@@ -153,7 +153,8 @@ const App: React.FC = () => {
   // NOTE: This is intentionally "security by obscurity" at the UI level.
   // Real protection must be enforced server-side.
   const TOOLS_UNLOCK_STORAGE_KEY = 'pgasol.toolsUnlocked.v1';
-  const configuredToolsPin = String((import.meta as any)?.env?.VITE_TOOLS_PIN ?? '').trim();
+  // IMPORTANT: use direct access so Vite can statically replace the value at build time.
+  const configuredToolsPin = String(import.meta.env.VITE_TOOLS_PIN ?? '').trim();
   const isLocalhost = () => {
     try {
       const h = window.location.hostname;
