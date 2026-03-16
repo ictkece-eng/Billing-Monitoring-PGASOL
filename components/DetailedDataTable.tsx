@@ -1,5 +1,6 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { BudgetRecord } from '../types';
 
 interface DetailedDataTableProps {
@@ -7,6 +8,7 @@ interface DetailedDataTableProps {
 }
 
 const DetailedDataTable: React.FC<DetailedDataTableProps> = ({ data }) => {
+  const tableRef = useRef<HTMLTableElement | null>(null);
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(val);
 
@@ -75,10 +77,91 @@ const DetailedDataTable: React.FC<DetailedDataTableProps> = ({ data }) => {
     });
   };
 
+  const exportFilteredToExcel = () => {
+    try {
+      const rows = filteredRows.map((r, idx) => ({
+        No: idx + 1,
+        Status: r.status,
+        'Nama User': r.namaUser,
+        Tim: r.tim,
+        Periode: r.periode,
+        Nilai: r.nilaiTagihan,
+        'No RO': r.noRO,
+        'Tgl BAST': r.tglBAST,
+        'No BAST': r.noBAST,
+        Status2: r.status2,
+        Keterangan: r.keterangan,
+        'SA No': r.saNo,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Transaksi');
+      const date = new Date();
+      const fileName = `database-transaksi-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (e: any) {
+      alert(`Gagal export Excel: ${String(e?.message || e)}`);
+    }
+  };
+
+  const printFilteredTable = () => {
+    try {
+      const htmlTable = tableRef.current?.outerHTML;
+      if (!htmlTable) {
+        window.print();
+        return;
+      }
+      const w = window.open('', '_blank', 'noopener,noreferrer');
+      if (!w) {
+        window.print();
+        return;
+      }
+      w.document.open();
+      w.document.write(`<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Database Transaksi</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/zephyr/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{ padding:16px; }
+    h1{ font-size:16px; margin:0 0 12px 0; }
+    table{ width:100%; }
+    .table{ font-size:9px; }
+    .sticky-top{ position: static !important; }
+  </style>
+</head>
+<body>
+  <h1>Database Transaksi (filtered: ${filteredRows.length} baris)</h1>
+  ${htmlTable}
+  <script>window.onload=()=>window.print();</script>
+</body>
+</html>`);
+      w.document.close();
+    } catch {
+      window.print();
+    }
+  };
+
   return (
     <div className="table-modern-wrapper no-side-scroll">
+      <div className="bg-white px-3 py-2 border-bottom d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <div className="small text-muted fw-bold" style={{ letterSpacing: '.06em' }}>Database Transaksi</div>
+        <div className="d-flex gap-2">
+          <button type="button" className="btn btn-sm btn-outline-success" onClick={exportFilteredToExcel} title="Export (filtered) ke Excel">
+            <i className="bi bi-file-earmark-excel me-2" aria-hidden="true" />
+            Export Excel
+          </button>
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={printFilteredTable} title="Print atau Save as PDF">
+            <i className="bi bi-printer me-2" aria-hidden="true" />
+            Print/PDF
+          </button>
+        </div>
+      </div>
       <div className="w-full max-h-[700px] overflow-y-auto">
-        <table className="table table-modern table-hover align-middle mb-0">
+        <table ref={tableRef} className="table table-modern table-hover align-middle mb-0">
           <thead className="sticky-top">
             <tr>
               <th className="text-center" style={{ width: '4%' }}>No.</th>
