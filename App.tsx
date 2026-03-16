@@ -140,6 +140,7 @@ const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [filterPeriode, setFilterPeriode] = useState<string>(ALL_PERIODE_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [activePage, setActivePage] = useState<'home' | 'tables'>('home');
   const [activeTab, setActiveTab] = useState<'dashboard'>('dashboard');
   const [activeTableTab, setActiveTableTab] = useState<'pivot' | 'raw'>('pivot');
@@ -148,6 +149,36 @@ const App: React.FC = () => {
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [tidbUploading, setTidbUploading] = useState(false);
   const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
+
+  // Theme (dark/light) - UI only, no impact to data/logic.
+  type AppTheme = 'light' | 'dark';
+  const THEME_STORAGE_KEY = 'pgasol.theme.v1';
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    try {
+      const t = String(localStorage.getItem(THEME_STORAGE_KEY) || '').trim().toLowerCase();
+      if (t === 'dark' || t === 'light') return t as AppTheme;
+    } catch {
+      // ignore
+    }
+    try {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  const setThemePersisted = (next: AppTheme) => {
+    setTheme(next);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleTheme = () => {
+    setThemePersisted(theme === 'dark' ? 'light' : 'dark');
+  };
 
   // Hide admin-only tools (Excel import + TiDB upload/history) from public UI.
   // NOTE: This is intentionally "security by obscurity" at the UI level.
@@ -202,6 +233,15 @@ const App: React.FC = () => {
 
   const isViewer = role === 'viewer' && !toolsUnlocked;
   const isAuthenticated = role !== 'unknown';
+
+  // Apply theme to document root (CSS hooks via [data-theme]).
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch {
+      // ignore
+    }
+  }, [theme]);
 
   // Masked PIN modal (replaces window.prompt so PIN isn't visible while typing)
   const [pinModalOpen, setPinModalOpen] = useState(false);
@@ -370,6 +410,29 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolsUnlocked]);
+
+  // Keyboard shortcut:
+  // - Ctrl+K => focus quick search input
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isCtrl = e.ctrlKey || e.metaKey;
+      if (!isCtrl) return;
+      if (e.shiftKey || e.altKey) return;
+      const k = String(e.key || '').toLowerCase();
+      if (k !== 'k') return;
+
+      // Avoid stealing focus while login PIN modal is open.
+      if (pinModalOpen) return;
+
+      e.preventDefault();
+      const el = searchInputRef.current;
+      if (!el) return;
+      el.focus();
+      el.select();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pinModalOpen]);
 
   // Close PIN modal with Escape and allow Enter to submit.
   useEffect(() => {
@@ -1251,7 +1314,7 @@ const App: React.FC = () => {
           )}
 
           {/* Header */}
-          <header className="sticky-top border-bottom bg-white shadow-sm">
+          <header className="sticky-top border-bottom bg-white shadow-sm no-print">
             <div className="container py-3">
               <div className="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
                 <div className="d-flex align-items-center gap-3">
@@ -1275,7 +1338,18 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {!isViewer && (
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={toggleTheme}
+                    title={theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
+                  >
+                    <i className={`bi ${theme === 'dark' ? 'bi-moon-stars-fill' : 'bi-sun-fill'} me-2`} aria-hidden="true" />
+                    {theme === 'dark' ? 'Dark' : 'Light'}
+                  </button>
+
+                  {!isViewer && (
                 <div className="d-flex flex-wrap align-items-center gap-2">
               <div className="d-flex flex-wrap align-items-center gap-2">
                 {toolsUnlocked && <ExcelImport onImport={handleImportExcel} />}
@@ -1356,6 +1430,7 @@ const App: React.FC = () => {
               )}
             </div>
                 )}
+                </div>
               </div>
             </div>
           </header>
@@ -1388,6 +1463,7 @@ const App: React.FC = () => {
                         placeholder="Cari Nama, Tim, No RO..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        ref={searchInputRef}
                         className="form-control"
                       />
                     </div>
