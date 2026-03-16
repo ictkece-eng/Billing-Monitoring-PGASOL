@@ -1,6 +1,22 @@
 
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import React, { useMemo } from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Legend,
+  ReferenceLine,
+} from 'recharts';
 import { BudgetRecord } from '../types';
 import { STATUS_COLS } from '../constants';
 
@@ -9,6 +25,125 @@ interface ChartsProps {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+const MONTH_TOKEN_MAP: Record<string, number> = {
+  jan: 1,
+  januari: 1,
+  feb: 2,
+  februari: 2,
+  mar: 3,
+  maret: 3,
+  apr: 4,
+  april: 4,
+  mei: 5,
+  may: 5,
+  jun: 6,
+  juni: 6,
+  jul: 7,
+  juli: 7,
+  agu: 8,
+  ags: 8,
+  agustus: 8,
+  aug: 8,
+  sep: 9,
+  september: 9,
+  okt: 10,
+  oktober: 10,
+  oct: 10,
+  nov: 11,
+  november: 11,
+  des: 12,
+  desember: 12,
+  dec: 12,
+};
+
+const toYearMonthKey = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`;
+
+// Local helper (duplicated from App for chart stability; does not affect app logic).
+const normalizePeriodeToYearMonthKey = (raw?: string): string | null => {
+  const s = (raw || '').trim();
+  if (!s || s === '-') return null;
+
+  // DD-MM-YYYY / DD/MM/YYYY / DD.MM.YYYY
+  let m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{2}|\d{4})\s*$/);
+  if (m) {
+    const month = Number(m[2]);
+    const yRaw = m[3];
+    let year = Number(yRaw);
+    if (yRaw.length === 2) year = 2000 + year;
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+  m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s*$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // YYYY-MM / YYYY/MM / YYYY.MM
+  m = s.match(/^\s*(\d{4})\s*[-\/.]\s*(\d{1,2})\s*$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // MM-YYYY / MM/YYYY / MM.YYYY
+  m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{4})\s*$/);
+  if (m) {
+    const month = Number(m[1]);
+    const year = Number(m[2]);
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  // MM-YY / MM/YY
+  m = s.match(/^\s*(\d{1,2})\s*[-\/.]\s*(\d{2})\s*$/);
+  if (m) {
+    const month = Number(m[1]);
+    const year2 = Number(m[2]);
+    const year = 2000 + year2;
+    if (month >= 1 && month <= 12) return toYearMonthKey(year, month);
+  }
+
+  const cleaned = s
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/_/g, ' ');
+
+  // "MMM YYYY" / "MMMM YYYY" / "MMM-YY" / "MMM-YYYY"
+  m = cleaned.match(/^\s*([a-z]+)\s*[-\s]\s*(\d{2}|\d{4})\s*$/);
+  if (m) {
+    const monToken = m[1];
+    const month = MONTH_TOKEN_MAP[monToken];
+    if (!month) return null;
+    const yRaw = m[2];
+    let year = Number(yRaw);
+    if (yRaw.length === 2) year = 2000 + year;
+    return toYearMonthKey(year, month);
+  }
+
+  // "YYYY MMM" / "YYYY MMMM"
+  m = cleaned.match(/^\s*(\d{4})\s*[-\s]\s*([a-z]+)\s*$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = MONTH_TOKEN_MAP[m[2]];
+    if (!month) return null;
+    return toYearMonthKey(year, month);
+  }
+
+  return null;
+};
+
+const formatYearMonthKeyToLabel = (key: string) => {
+  const m = key.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return key;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || month < 1 || month > 12) return key;
+  return new Intl.DateTimeFormat('id-ID', { month: 'short', year: '2-digit' }).format(new Date(year, month - 1, 1));
+};
 
 const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
@@ -68,7 +203,37 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
     return `${str.slice(0, Math.max(0, maxLen - 1))}…`;
   };
 
+  const monthlyTrend = useMemo(() => {
+    const totalsByYM = data.reduce((acc, curr) => {
+      const key = normalizePeriodeToYearMonthKey(curr.periode);
+      if (!key) return acc;
+      acc[key] = (acc[key] || 0) + (typeof curr.nilaiTagihan === 'number' && Number.isFinite(curr.nilaiTagihan) ? curr.nilaiTagihan : 0);
+      return acc;
+    }, {} as Record<string, number>);
+
+    const keys = Object.keys(totalsByYM).sort();
+    const points = keys.map(k => ({
+      ym: k,
+      label: formatYearMonthKeyToLabel(k),
+      value: totalsByYM[k] || 0,
+    }));
+
+    const avg = points.length > 0 ? points.reduce((s, p) => s + p.value, 0) / points.length : 0;
+    return { points, avg };
+  }, [data]);
+
+  const status2Pie = useMemo(() => {
+    const sorted = statusDistributionForChart.slice();
+    const top = sorted.slice(0, 6);
+    const restSum = sorted.slice(6).reduce((acc, s) => acc + (typeof s.value === 'number' ? s.value : Number(s.value) || 0), 0);
+    const out = top.map(x => ({ name: x.name, value: Number(x.value) || 0 }));
+    if (restSum > 0) out.push({ name: 'Others', value: restSum });
+    const total = out.reduce((acc, s) => acc + s.value, 0);
+    return { data: out, total };
+  }, [statusDistributionForChart]);
+
   return (
+    <>
     <div className="row g-4 mb-4">
       <div className="col-12 col-lg-6">
         <div className="card shadow-sm border-0 h-100">
@@ -152,6 +317,73 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
         </div>
       </div>
     </div>
+
+    <div className="row g-4 mb-4">
+      <div className="col-12 col-lg-6">
+        <div className="card shadow-sm border-0 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Trend Bulanan (Spending)</div>
+              <span className="badge text-bg-success-subtle border border-success-subtle text-success">Trend</span>
+            </div>
+            <div style={{ height: 320 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyTrend.points} margin={{ top: 8, right: 18, bottom: 8, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCurrencyCompact} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={formatCurrency} labelFormatter={(l) => `Periode: ${l}`} />
+                  {monthlyTrend.avg > 0 && (
+                    <ReferenceLine y={monthlyTrend.avg} stroke="#10b981" strokeDasharray="4 4" ifOverflow="extendDomain" />
+                  )}
+                  <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="small text-muted mt-2">
+              {monthlyTrend.points.length === 0 ? 'Periode belum terbaca sebagai bulan.' : `Avg/bln: ${formatCurrency(monthlyTrend.avg)}`}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="col-12 col-lg-6">
+        <div className="card shadow-sm border-0 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Komposisi Status2 (Top)</div>
+              <span className="badge text-bg-warning-subtle border border-warning-subtle text-warning">Share</span>
+            </div>
+            <div style={{ height: 320 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={status2Pie.data}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={110}
+                    paddingAngle={2}
+                  >
+                    {status2Pie.data.map((_, index) => (
+                      <Cell key={`slice-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={formatCurrency} labelFormatter={(label) => `Status2: ${label}`} />
+                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="small text-muted mt-2">
+              Total: <span className="fw-semibold">{formatCurrency(status2Pie.total)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </>
   );
 };
 
