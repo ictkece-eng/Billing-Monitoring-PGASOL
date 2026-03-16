@@ -1,5 +1,6 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { BudgetRecord, PivotRow } from '../types';
 import { STATUS_COLS } from '../constants';
 
@@ -17,6 +18,7 @@ const formatCurrency = (amount: number) => {
 };
 
 const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
+  const tableRef = useRef<HTMLTableElement | null>(null);
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
   const canonicalizeStatus2 = (raw: any): string => {
     const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
@@ -79,19 +81,96 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
 
   if (data.length === 0) return null;
 
+  const exportPivotToExcel = () => {
+    try {
+      const rows = pivotData.map(r => {
+        const o: Record<string, any> = {
+          Tim: r.tim,
+          'Nama User': r.namaUser,
+        };
+        for (const col of STATUS_COLS) {
+          o[col] = r.data[col] || 0;
+        }
+        o['Grand Total'] = r.total || 0;
+        return o;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Pivot');
+      const date = new Date();
+      const fileName = `pivot-rekap-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (e: any) {
+      alert(`Gagal export Excel: ${String(e?.message || e)}`);
+    }
+  };
+
+  const printPivotTable = () => {
+    try {
+      const htmlTable = tableRef.current?.outerHTML;
+      if (!htmlTable) {
+        window.print();
+        return;
+      }
+      const w = window.open('', '_blank', 'noopener,noreferrer');
+      if (!w) {
+        window.print();
+        return;
+      }
+      w.document.open();
+      w.document.write(`<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pivot Rekap</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/zephyr/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body{ padding:16px; }
+    h1{ font-size:16px; margin:0 0 12px 0; }
+    table{ width:100%; }
+    .table{ font-size:10px; }
+  </style>
+</head>
+<body>
+  <h1>Pivot Rekap</h1>
+  ${htmlTable}
+  <script>window.onload=()=>window.print();</script>
+</body>
+</html>`);
+      w.document.close();
+    } catch {
+      window.print();
+    }
+  };
+
   return (
     <div className="table-modern-wrapper no-side-scroll">
       <div className="bg-white p-3 border-bottom d-flex align-items-center gap-2 flex-wrap">
-        <span className="badge bg-primary-subtle text-primary border border-primary-subtle pivot-header-badge">Sum of Nilai Tagihan</span>
-        <div className="d-flex gap-1">
-            <span className="badge bg-light text-muted border pivot-header-badge">tim</span>
-            <span className="badge bg-light text-muted border pivot-header-badge">Nama user</span>
-            <span className="badge bg-light text-muted border pivot-header-badge">Status2</span>
+        <div className="d-flex align-items-center gap-2 flex-wrap">
+          <span className="badge bg-primary-subtle text-primary border border-primary-subtle pivot-header-badge">Sum of Nilai Tagihan</span>
+          <div className="d-flex gap-1">
+              <span className="badge bg-light text-muted border pivot-header-badge">tim</span>
+              <span className="badge bg-light text-muted border pivot-header-badge">Nama user</span>
+              <span className="badge bg-light text-muted border pivot-header-badge">Status2</span>
+          </div>
+        </div>
+
+        <div className="ms-auto d-flex gap-2">
+          <button type="button" className="btn btn-sm btn-outline-success" onClick={exportPivotToExcel} title="Export pivot ke Excel">
+            <i className="bi bi-file-earmark-excel me-2" aria-hidden="true" />
+            Export Excel
+          </button>
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={printPivotTable} title="Print atau Save as PDF">
+            <i className="bi bi-printer me-2" aria-hidden="true" />
+            Print/PDF
+          </button>
         </div>
       </div>
 
       <div className="w-full">
-        <table className="table table-modern table-hover align-middle">
+        <table ref={tableRef} className="table table-modern table-hover align-middle">
           <thead>
             <tr className="text-center">
               <th className="text-start" style={{ width: '12%' }}>Tim</th>
