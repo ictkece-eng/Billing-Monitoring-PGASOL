@@ -59,6 +59,101 @@ html {
   border-color: #1f2937 !important;
 }
 
+:root[data-theme="dark"] .bg-light,
+:root[data-theme="dark"] .table-light,
+:root[data-theme="dark"] .bg-light-subtle,
+:root[data-theme="dark"] .text-bg-light {
+  background-color: #111c33 !important;
+  color: rgba(229, 231, 235, 0.9) !important;
+  border-color: #1f2937 !important;
+}
+
+:root[data-theme="dark"] .btn-light {
+  background-color: #111c33 !important;
+  border-color: #1f2937 !important;
+  color: rgba(229, 231, 235, 0.92) !important;
+}
+
+/* KPI cards (App.tsx adds these classes) */
+:root[data-theme="dark"] .kpi-card {
+  border-color: #334155 !important;
+}
+
+:root[data-theme="dark"] .card-terserap {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+:root[data-theme="dark"] .card-sisa {
+  background: #064e3b !important;
+  border-color: #065f46 !important;
+}
+
+:root[data-theme="dark"] .card-melebihi {
+  background: #450a0a !important;
+  border-color: #7f1d1d !important;
+}
+
+:root[data-theme="dark"] .card-melebihi-zero {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+:root[data-theme="dark"] .card-prokrosa {
+  background: #1e1b4b !important;
+  border-color: #312e81 !important;
+}
+
+:root[data-theme="dark"] .kpi-card .kpi-title,
+:root[data-theme="dark"] .kpi-card .kpi-subtitle,
+:root[data-theme="dark"] .kpi-card .kpi-value {
+  color: rgba(229, 231, 235, 0.95) !important;
+}
+
+:root[data-theme="dark"] .kpi-card .kpi-muted {
+  color: rgba(229, 231, 235, 0.72) !important;
+}
+
+/* Filter chips */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(241, 245, 249, 0.8);
+  font-size: 12px;
+  line-height: 1;
+}
+
+:root[data-theme="dark"] .filter-chip {
+  background: rgba(17, 28, 51, 0.75);
+  border-color: rgba(51, 65, 85, 0.9);
+  color: rgba(229, 231, 235, 0.92);
+}
+
+.filter-chip button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.filter-chip button:hover {
+  opacity: 1;
+}
+
+/* Micro-interactions (opt-in) */
+.micro-hover {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.micro-hover:hover {
+  transform: translateY(-1px) scale(1.01);
+}
+
 :root[data-theme="dark"] .table-modern td {
   color: rgba(229, 231, 235, 0.92) !important;
   border-color: rgba(31, 41, 55, 0.9) !important;
