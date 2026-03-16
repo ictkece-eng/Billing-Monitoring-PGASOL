@@ -234,6 +234,30 @@ const App: React.FC = () => {
   const isViewer = role === 'viewer' && !toolsUnlocked;
   const isAuthenticated = role !== 'unknown';
 
+  const logout = () => {
+    // Reset to login state (does not delete data; only hides UI until PIN entered again)
+    try {
+      setUploadHistoryOpen(false);
+      setIsInputOpen(false);
+    } catch {
+      // ignore
+    }
+    setToolsUnlockedPersisted(false);
+    setRolePersisted('unknown');
+  };
+
+  const breadcrumb = useMemo(() => {
+    const parts: string[] = [];
+    if (activePage === 'home') {
+      parts.push('Beranda');
+      parts.push('Visualisasi');
+    } else {
+      parts.push('Tabel Excel');
+      parts.push(activeTableTab === 'pivot' ? 'Pivot Rekap' : 'Database Transaksi');
+    }
+    return parts;
+  }, [activePage, activeTableTab]);
+
   // Apply theme to document root (CSS hooks via [data-theme]).
   useEffect(() => {
     try {
@@ -835,6 +859,13 @@ const App: React.FC = () => {
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
+  const progressTone = useMemo(() => {
+    const pct = absorbedPct;
+    if (pct < 50) return { bar: '#22c55e', bg: '#dcfce7', label: '0-50%' };
+    if (pct < 80) return { bar: '#eab308', bg: '#fef9c3', label: '50-80%' };
+    return { bar: '#ef4444', bg: '#fee2e2', label: '80-100%' };
+  }, [absorbedPct]);
+
   const status2ModalRows = useMemo(() => {
     if (!status2ModalOpen || !status2ModalKey) return [] as BudgetRecord[];
     return filteredData
@@ -1335,13 +1366,25 @@ const App: React.FC = () => {
                       Budget Monitoring
                     </h1>
                     <div className="small text-muted text-uppercase" style={{ letterSpacing: '.08em' }}>Asset Management & Cost Control</div>
+                    <div className="small text-muted mt-1" style={{ letterSpacing: '.02em' }}>
+                      {breadcrumb.join(' / ')}
+                    </div>
                   </div>
                 </div>
 
                 <div className="d-flex flex-wrap align-items-center gap-2">
+                  {/* Notifications (stub) */}
+                  <button type="button" className="btn btn-outline-secondary position-relative micro-hover" title="Notifikasi (coming soon)">
+                    <i className="bi bi-bell" aria-hidden="true" />
+                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ display: 'none' }}>
+                      0
+                    </span>
+                  </button>
+
+                  {/* Theme */}
                   <button
                     type="button"
-                    className="btn btn-outline-secondary"
+                    className="btn btn-outline-secondary micro-hover"
                     onClick={toggleTheme}
                     title={theme === 'dark' ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}
                   >
@@ -1349,87 +1392,150 @@ const App: React.FC = () => {
                     {theme === 'dark' ? 'Dark' : 'Light'}
                   </button>
 
+                  {/* Navigation */}
                   {!isViewer && (
-                <div className="d-flex flex-wrap align-items-center gap-2">
-              <div className="d-flex flex-wrap align-items-center gap-2">
-                {toolsUnlocked && <ExcelImport onImport={handleImportExcel} />}
-                {toolsUnlocked && (
-                  <button
-                    onClick={handleUploadToTiDB}
-                    disabled={tidbUploading}
-                    className={`btn ${tidbUploading ? 'btn-secondary disabled' : 'btn-primary'}`}
-                    title="Upload data yang sudah ada di aplikasi ke database TiDB (butuh TiDB API server)"
-                  >
-                    <i className="bi bi-cloud-arrow-up me-2" aria-hidden="true" />
-                    {tidbUploading ? 'Uploading...' : 'Upload TiDB'}
-                  </button>
-                )}
-                {toolsUnlocked && (
-                  <button
-                    onClick={() => setUploadHistoryOpen(true)}
-                    className="btn btn-dark"
-                    title="Lihat riwayat upload ke TiDB (dan hapus riwayatnya jika perlu)"
-                  >
-                    <i className="bi bi-clock-history me-2" aria-hidden="true" />
-                    History Upload
-                  </button>
-                )}
-                <button
-                  onClick={() => setIsInputOpen(true)}
-                  className="btn btn-success"
-                >
-                  <i className="bi bi-plus-lg me-2" aria-hidden="true" />
-                  Tambah Data
-                </button>
-              </div>
+                    <div className="btn-group" role="group" aria-label="Navigasi">
+                      <button
+                        onClick={() => setActivePage('home')}
+                        className={`btn btn-sm ${activePage === 'home' ? 'btn-primary' : 'btn-outline-primary'} micro-hover`}
+                      >
+                        Beranda
+                      </button>
+                      <button
+                        onClick={() => setActivePage('tables')}
+                        className={`btn btn-sm ${activePage === 'tables' ? 'btn-primary' : 'btn-outline-primary'} micro-hover`}
+                      >
+                        Tabel Excel
+                      </button>
+                    </div>
+                  )}
 
-              {/* Menu: Tabel dibuat halaman tersendiri (tidak digabung di beranda) */}
-              <div className="btn-group" role="group" aria-label="Navigasi">
-                <button
-                  onClick={() => setActivePage('home')}
-                  className={`btn btn-sm ${activePage === 'home' ? 'btn-primary' : 'btn-outline-primary'}`}
-                >
-                  Beranda
-                </button>
-                <button
-                  onClick={() => setActivePage('tables')}
-                  className={`btn btn-sm ${activePage === 'tables' ? 'btn-primary' : 'btn-outline-primary'}`}
-                >
-                  Tabel Excel
-                </button>
-              </div>
+                  {!isViewer && activePage === 'tables' && (
+                    <div className="btn-group" role="group" aria-label="Tab tabel">
+                      <button
+                        onClick={() => setActiveTableTab('pivot')}
+                        className={`btn btn-sm ${activeTableTab === 'pivot' ? 'btn-secondary' : 'btn-outline-secondary'} micro-hover`}
+                      >
+                        Pivot Rekap
+                      </button>
+                      <button
+                        onClick={() => setActiveTableTab('raw')}
+                        className={`btn btn-sm ${activeTableTab === 'raw' ? 'btn-secondary' : 'btn-outline-secondary'} micro-hover`}
+                      >
+                        Database Transaksi
+                      </button>
+                    </div>
+                  )}
 
-              {/* Submenu khusus halaman Tabel */}
-              {activePage === 'tables' && (
-                <div className="btn-group" role="group" aria-label="Tab tabel">
-                  <button
-                    onClick={() => setActiveTableTab('pivot')}
-                    className={`btn btn-sm ${activeTableTab === 'pivot' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  >
-                    Pivot Rekap
-                  </button>
-                  <button
-                    onClick={() => setActiveTableTab('raw')}
-                    className={`btn btn-sm ${activeTableTab === 'raw' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  >
-                    Database Transaksi
-                  </button>
-                </div>
-              )}
+                  {!isViewer && activePage === 'home' && (
+                    <div className="btn-group" role="group" aria-label="Tab beranda">
+                      <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`btn btn-sm ${activeTab === 'dashboard' ? 'btn-info text-white' : 'btn-outline-info'} micro-hover`}
+                      >
+                        Visualisasi
+                      </button>
+                    </div>
+                  )}
 
-              {/* Tabs khusus beranda */}
-              {activePage === 'home' && (
-                <div className="btn-group" role="group" aria-label="Tab beranda">
-                  <button
-                    onClick={() => setActiveTab('dashboard')}
-                    className={`btn btn-sm ${activeTab === 'dashboard' ? 'btn-info text-white' : 'btn-outline-info'}`}
-                  >
-                    Visualisasi
-                  </button>
-                </div>
-              )}
-            </div>
-                )}
+                  {/* Actions dropdown (admin/staff) */}
+                  {!isViewer && (
+                    <div className="dropdown">
+                      <button
+                        className="btn btn-primary dropdown-toggle micro-hover"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        title="Actions"
+                      >
+                        <i className="bi bi-lightning-charge-fill me-2" aria-hidden="true" />
+                        Actions
+                      </button>
+                      <ul className="dropdown-menu dropdown-menu-end">
+                        {toolsUnlocked && (
+                          <li className="px-3 py-2">
+                            <ExcelImport
+                              onImport={handleImportExcel}
+                              buttonClassName="btn btn-sm btn-success w-100 micro-hover"
+                              label="Impor Excel"
+                            />
+                          </li>
+                        )}
+                        {toolsUnlocked && (
+                          <li>
+                            <button
+                              className="dropdown-item"
+                              onClick={handleUploadToTiDB}
+                              disabled={tidbUploading}
+                            >
+                              <i className="bi bi-cloud-arrow-up me-2" aria-hidden="true" />
+                              {tidbUploading ? 'Uploading…' : 'Upload TiDB'}
+                            </button>
+                          </li>
+                        )}
+                        {toolsUnlocked && (
+                          <li>
+                            <button className="dropdown-item" onClick={() => setUploadHistoryOpen(true)}>
+                              <i className="bi bi-clock-history me-2" aria-hidden="true" />
+                              History Upload
+                            </button>
+                          </li>
+                        )}
+                        <li>
+                          <button className="dropdown-item" onClick={() => setIsInputOpen(true)}>
+                            <i className="bi bi-plus-lg me-2" aria-hidden="true" />
+                            Tambah Data
+                          </button>
+                        </li>
+                        {toolsUnlocked && (
+                          <li><hr className="dropdown-divider" /></li>
+                        )}
+                        {toolsUnlocked && (
+                          <li>
+                            <button className="dropdown-item text-danger" onClick={lockTools}>
+                              <i className="bi bi-lock-fill me-2" aria-hidden="true" />
+                              Lock Admin Tools
+                            </button>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* User profile */}
+                  <div className="dropdown">
+                    <button
+                      className="btn btn-outline-secondary dropdown-toggle micro-hover"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      title="User menu"
+                    >
+                      <i className="bi bi-person-circle me-2" aria-hidden="true" />
+                      {role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'User'}
+                    </button>
+                    <ul className="dropdown-menu dropdown-menu-end">
+                      <li>
+                        <div className="dropdown-item-text">
+                          <div className="fw-semibold">{role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'User'}</div>
+                          <div className="small text-muted">{toolsUnlocked ? 'Tools: Unlocked' : 'Tools: Locked'}</div>
+                        </div>
+                      </li>
+                      <li><hr className="dropdown-divider" /></li>
+                      <li>
+                        <button className="dropdown-item" onClick={toggleTheme}>
+                          <i className={`bi ${theme === 'dark' ? 'bi-sun-fill' : 'bi-moon-stars-fill'} me-2`} aria-hidden="true" />
+                          {theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
+                        </button>
+                      </li>
+                      <li>
+                        <button className="dropdown-item text-danger" onClick={logout}>
+                          <i className="bi bi-box-arrow-right me-2" aria-hidden="true" />
+                          Logout
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1460,12 +1566,39 @@ const App: React.FC = () => {
                       <span className="input-group-text"><i className="bi bi-search" aria-hidden="true" /></span>
                       <input
                         type="text"
-                        placeholder="Cari Nama, Tim, No RO..."
+                        placeholder="Cari data… (Ctrl + K)"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         ref={searchInputRef}
                         className="form-control"
                       />
+                    </div>
+
+                    {/* Filter chips */}
+                    <div className="d-flex flex-wrap gap-2 mt-3">
+                      {filterPeriode !== ALL_PERIODE_VALUE && (
+                        <span className="filter-chip" title="Filter periode aktif">
+                          <i className="bi bi-calendar3" aria-hidden="true" />
+                          {formatYearMonthKeyToLabel(filterPeriode)}
+                          <button type="button" aria-label="Hapus filter periode" onClick={() => setFilterPeriode(ALL_PERIODE_VALUE)}>
+                            <i className="bi bi-x-circle" aria-hidden="true" />
+                          </button>
+                        </span>
+                      )}
+                      {searchQuery.trim() !== '' && (
+                        <span className="filter-chip" title="Pencarian aktif">
+                          <i className="bi bi-search" aria-hidden="true" />
+                          <span className="text-truncate" style={{ maxWidth: 220 }}>{searchQuery}</span>
+                          <button type="button" aria-label="Hapus pencarian" onClick={() => setSearchQuery('')}>
+                            <i className="bi bi-x-circle" aria-hidden="true" />
+                          </button>
+                        </span>
+                      )}
+                      {(filterPeriode !== ALL_PERIODE_VALUE || searchQuery.trim() !== '') && (
+                        <button type="button" className="btn btn-sm btn-outline-secondary micro-hover" onClick={() => { setFilterPeriode(ALL_PERIODE_VALUE); setSearchQuery(''); }}>
+                          Clear All
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1511,7 +1644,7 @@ const App: React.FC = () => {
 
                     <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
                       <div
-                        className="bg-slate-50 border border-slate-200 rounded-2xl p-5 min-w-[280px] w-max flex-none cursor-pointer shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        className="kpi-card card-terserap bg-slate-50 border border-slate-200 rounded-2xl p-5 min-w-[280px] w-max flex-none cursor-pointer shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                         role="button"
                         tabIndex={0}
                         title="Klik untuk melihat Ringkasan Status2 (berdasarkan filter aktif)"
@@ -1523,42 +1656,58 @@ const App: React.FC = () => {
                           }
                         }}
                       >
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Terserap</p>
-                        <p className="text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
-                        <p className="text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
-                        <p className="text-[12px] text-slate-500/80 mt-2 pt-2 border-t border-slate-200/60">
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <p className="kpi-title text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0">Terserap</p>
+                          <i className="bi bi-wallet2 kpi-muted" aria-hidden="true" title="Terserap" />
+                        </div>
+                        <p className="kpi-value text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
+                        <p className="kpi-subtitle text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
+                        <p className="kpi-muted text-[12px] text-slate-500/80 mt-2 pt-2 border-t border-slate-200/60">
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
                         </p>
                       </div>
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
-                        <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Sisa Anggaran</p>
-                        <p className="text-xl font-black text-emerald-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
-                        <p className="text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
-                        <p className="text-[12px] text-emerald-900/70 mt-2 pt-2 border-t border-emerald-200/70">
+                      <div className="kpi-card card-sisa bg-emerald-50 border border-emerald-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <p className="kpi-title text-[11px] font-bold text-emerald-700 uppercase tracking-widest mb-0">Sisa Anggaran</p>
+                          <i className="bi bi-graph-up-arrow kpi-muted" aria-hidden="true" title="Sisa" />
+                        </div>
+                        <p className="kpi-value text-xl font-black text-emerald-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(remainingValue)}>{formatCurrency(remainingValue)}</p>
+                        <p className="kpi-subtitle text-[12px] text-emerald-800/80 font-medium mt-1">Budget tersedia</p>
+                        <p className="kpi-muted text-[12px] text-emerald-900/70 mt-2 pt-2 border-t border-emerald-200/70">
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(remainingValueFiltered)}>{formatCurrency(remainingValueFiltered)}</span>
                         </p>
                       </div>
-                      <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
-                        <p className="text-[11px] font-bold text-rose-700 uppercase tracking-widest">Melebihi</p>
-                        <p className="text-xl font-black text-rose-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
-                        <p className="text-[12px] text-rose-800/80 font-medium mt-1">Jika terserap &gt; kontrak</p>
-                        <p className="text-[12px] text-rose-900/70 mt-2 pt-2 border-t border-rose-200/70">
+                      <div className={`kpi-card ${overBudgetValue > 0 ? 'card-melebihi bg-rose-50 border border-rose-200' : 'card-melebihi-zero bg-slate-50 border border-slate-200'} rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]`}>
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <p className={`kpi-title text-[11px] font-bold uppercase tracking-widest mb-0 ${overBudgetValue > 0 ? 'text-rose-700' : 'text-slate-500'}`}>Melebihi</p>
+                          {overBudgetValue > 0 ? (
+                            <i className="bi bi-exclamation-triangle-fill kpi-muted" aria-hidden="true" title="Over budget" />
+                          ) : (
+                            <i className="bi bi-shield-check kpi-muted" aria-hidden="true" title="Aman" />
+                          )}
+                        </div>
+                        <p className={`kpi-value text-xl font-black mt-1 safe-number tabular-nums tracking-tight ${overBudgetValue > 0 ? 'text-rose-900' : 'text-slate-900'}`} title={formatCurrency(overBudgetValue)}>{formatCurrency(overBudgetValue)}</p>
+                        <p className={`kpi-subtitle text-[12px] font-medium mt-1 ${overBudgetValue > 0 ? 'text-rose-800/80' : 'text-slate-500'}`}>{overBudgetValue > 0 ? 'Jika terserap > kontrak' : 'Tidak ada over budget'}</p>
+                        <p className={`kpi-muted text-[12px] mt-2 pt-2 border-t ${overBudgetValue > 0 ? 'text-rose-900/70 border-rose-200/70' : 'text-slate-600 border-slate-200/60'}`}>
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(overBudgetValueFiltered)}>{formatCurrency(overBudgetValueFiltered)}</span>
                         </p>
                       </div>
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
-                        <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">Prokrosa Durasi Contract</p>
+                      <div className="kpi-card card-prokrosa bg-indigo-50 border border-indigo-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px]">
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <p className="kpi-title text-[11px] font-bold text-indigo-700 uppercase tracking-widest mb-0">Prokrosa Durasi Contract</p>
+                          <i className="bi bi-calendar3 kpi-muted" aria-hidden="true" title="Durasi" />
+                        </div>
                         <p className="text-xl font-black text-indigo-900 mt-1 tabular-nums tracking-tight">
                           {estimatedMonthsRemaining === null
                             ? '—'
                             : `≈ ${estimatedMonthsRemaining.toFixed(1)} bln`}
                         </p>
-                        <p className="text-[12px] text-indigo-900/70 font-medium mt-1 leading-snug">
+                        <p className="kpi-muted text-[12px] text-indigo-900/70 font-medium mt-1 leading-snug">
                           {monthlyRunRate.mode === 'unparseable'
                             ? 'Periode belum terbaca sebagai bulan'
                             : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
                         </p>
-                        <p className="text-[12px] text-indigo-900/70 mt-2 pt-2 border-t border-indigo-200/70 leading-snug">
+                        <p className="kpi-muted text-[12px] text-indigo-900/70 mt-2 pt-2 border-t border-indigo-200/70 leading-snug">
                           Filtered: {
                             estimatedMonthsRemainingFiltered === null
                               ? '—'
@@ -1577,10 +1726,10 @@ const App: React.FC = () => {
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progress serapan</span>
                       <span className="text-[10px] font-bold text-slate-600">{absorbedPct.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                    <div className="w-full h-2.5 rounded-full overflow-hidden border border-slate-200" style={{ backgroundColor: progressTone.bg }} title={`Segment: ${progressTone.label}`}>
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-700"
-                        style={{ width: `${absorbedPct}%` }}
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ backgroundColor: progressTone.bar, width: `${absorbedPct}%` }}
                       />
                     </div>
                   </div>
