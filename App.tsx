@@ -6,7 +6,6 @@ import PivotTable from './components/PivotTable';
 import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
 import BudgetInputForm from './components/BudgetInputForm';
-import ExcelImport from './components/ExcelImport';
 import Status2DetailModal from './components/Status2DetailModal';
 import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
@@ -1452,52 +1451,12 @@ const App: React.FC = () => {
                         Actions
                       </button>
                       <ul className="dropdown-menu dropdown-menu-end">
-                        {toolsUnlocked && (
-                          <li className="px-3 py-2">
-                            <ExcelImport
-                              onImport={handleImportExcel}
-                              buttonClassName="btn btn-sm btn-success w-100 micro-hover"
-                              label="Impor Excel"
-                            />
-                          </li>
-                        )}
-                        {toolsUnlocked && (
-                          <li>
-                            <button
-                              className="dropdown-item"
-                              onClick={handleUploadToTiDB}
-                              disabled={tidbUploading}
-                            >
-                              <i className="bi bi-cloud-arrow-up me-2" aria-hidden="true" />
-                              {tidbUploading ? 'Uploading…' : 'Upload TiDB'}
-                            </button>
-                          </li>
-                        )}
-                        {toolsUnlocked && (
-                          <li>
-                            <button className="dropdown-item" onClick={() => setUploadHistoryOpen(true)}>
-                              <i className="bi bi-clock-history me-2" aria-hidden="true" />
-                              History Upload
-                            </button>
-                          </li>
-                        )}
                         <li>
                           <button className="dropdown-item" onClick={() => setIsInputOpen(true)}>
                             <i className="bi bi-plus-lg me-2" aria-hidden="true" />
                             Tambah Data
                           </button>
                         </li>
-                        {toolsUnlocked && (
-                          <li><hr className="dropdown-divider" /></li>
-                        )}
-                        {toolsUnlocked && (
-                          <li>
-                            <button className="dropdown-item text-danger" onClick={lockTools}>
-                              <i className="bi bi-lock-fill me-2" aria-hidden="true" />
-                              Lock Admin Tools
-                            </button>
-                          </li>
-                        )}
                       </ul>
                     </div>
                   )}
