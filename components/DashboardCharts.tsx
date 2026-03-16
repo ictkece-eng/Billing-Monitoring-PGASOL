@@ -145,7 +145,10 @@ const formatYearMonthKeyToLabel = (key: string) => {
   return new Intl.DateTimeFormat('id-ID', { month: 'short', year: '2-digit' }).format(new Date(year, month - 1, 1));
 };
 
+type ChartTab = 'team' | 'billing' | 'trend' | 'composition';
+
 const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
+  const [tab, setTab] = React.useState<ChartTab>('team');
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
   const canonicalizeStatus2 = (raw: any): string => {
     const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
@@ -232,110 +235,81 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
     return { data: out, total };
   }, [statusDistributionForChart]);
 
-  return (
-    <>
-    <div className="row g-4 mb-4">
-      <div className="col-12 col-lg-6">
-        <div className="card shadow-sm border-0 h-100">
+  const renderChart = () => {
+    if (tab === 'team') {
+      return (
+        <div className="card shadow-sm border-0">
           <div className="card-body">
             <div className="d-flex align-items-center justify-content-between mb-3">
               <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Top 5 Team Spending</div>
-              <span className="badge text-bg-primary-subtle border border-primary-subtle text-primary">Chart</span>
+              <span className="badge text-bg-primary-subtle border border-primary-subtle text-primary">Bar</span>
             </div>
-            <div style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={teamSpending.slice(0, 5)} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" width={150} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={formatCurrency} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                {teamSpending.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+            <div style={{ height: 360 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={teamSpending.slice(0, 5)} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={formatCurrency} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {teamSpending.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
-      </div>
+      );
+    }
 
-      <div className="col-12 col-lg-6">
-        <div className="card shadow-sm border-0 h-100">
+    if (tab === 'billing') {
+      return (
+        <div className="card shadow-sm border-0">
           <div className="card-body">
             <div className="d-flex align-items-center justify-content-between mb-3">
               <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Spending by Billing Status</div>
-              <span className="badge text-bg-info-subtle border border-info-subtle text-info">Chart</span>
+              <span className="badge text-bg-info-subtle border border-info-subtle text-info">Bar</span>
             </div>
-            <div style={{ height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={statusDistributionForChart} layout="vertical" margin={{ top: 6, right: 28, bottom: 6, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis
-                type="number"
-                tick={{ fontSize: 10 }}
-                tickFormatter={formatCurrencyCompact}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                dataKey="name"
-                type="category"
-                width={210}
-                tick={{ fontSize: 10 }}
-                tickFormatter={(v) => truncateLabel(v, 30)}
-              />
-              <Tooltip
-                formatter={formatCurrency}
-                labelFormatter={(label) => `Status: ${label}`}
-                contentStyle={{ borderRadius: 10, borderColor: '#e2e8f0' }}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
-                {statusDistributionForChart.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-                <LabelList
-                  dataKey="value"
-                  position="right"
-                  formatter={formatCurrencyCompact}
-                  style={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+            <div style={{ height: 360 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={statusDistributionForChart} layout="vertical" margin={{ top: 6, right: 28, bottom: 6, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatCurrencyCompact} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateLabel(v, 34)} />
+                  <Tooltip formatter={formatCurrency} labelFormatter={(label) => `Status: ${label}`} contentStyle={{ borderRadius: 10, borderColor: '#e2e8f0' }} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+                    {statusDistributionForChart.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                    <LabelList dataKey="value" position="right" formatter={formatCurrencyCompact} style={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-            <div className="d-flex flex-wrap gap-3 justify-content-center mt-3">
-              {statusDistributionForChart.map((s, i) => (
-                <div key={s.name} className="d-flex align-items-center gap-2">
-                  <span className="d-inline-block rounded-circle" style={{ width: 10, height: 10, backgroundColor: COLORS[i % COLORS.length] }} />
-                  <small className="text-muted">{s.name}</small>
-                </div>
-              ))}
-            </div>
+            <div className="small text-muted mt-2">Tip: hover untuk detail. (Drill-down klik bar bisa ditambahkan di tahap berikutnya.)</div>
           </div>
         </div>
-      </div>
-    </div>
+      );
+    }
 
-    <div className="row g-4 mb-4">
-      <div className="col-12 col-lg-6">
-        <div className="card shadow-sm border-0 h-100">
+    if (tab === 'trend') {
+      return (
+        <div className="card shadow-sm border-0">
           <div className="card-body">
             <div className="d-flex align-items-center justify-content-between mb-3">
               <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Trend Bulanan (Spending)</div>
-              <span className="badge text-bg-success-subtle border border-success-subtle text-success">Trend</span>
+              <span className="badge text-bg-success-subtle border border-success-subtle text-success">Line</span>
             </div>
-            <div style={{ height: 320 }}>
+            <div style={{ height: 360 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyTrend.points} margin={{ top: 8, right: 18, bottom: 8, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={formatCurrencyCompact} axisLine={false} tickLine={false} />
                   <Tooltip formatter={formatCurrency} labelFormatter={(l) => `Periode: ${l}`} />
-                  {monthlyTrend.avg > 0 && (
-                    <ReferenceLine y={monthlyTrend.avg} stroke="#10b981" strokeDasharray="4 4" ifOverflow="extendDomain" />
-                  )}
+                  {monthlyTrend.avg > 0 && <ReferenceLine y={monthlyTrend.avg} stroke="#10b981" strokeDasharray="4 4" ifOverflow="extendDomain" />}
                   <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -345,45 +319,56 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
             </div>
           </div>
         </div>
-      </div>
+      );
+    }
 
-      <div className="col-12 col-lg-6">
-        <div className="card shadow-sm border-0 h-100">
-          <div className="card-body">
-            <div className="d-flex align-items-center justify-content-between mb-3">
-              <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Komposisi Status2 (Top)</div>
-              <span className="badge text-bg-warning-subtle border border-warning-subtle text-warning">Share</span>
-            </div>
-            <div style={{ height: 320 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={status2Pie.data}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={70}
-                    outerRadius={110}
-                    paddingAngle={2}
-                  >
-                    {status2Pie.data.map((_, index) => (
-                      <Cell key={`slice-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={formatCurrency} labelFormatter={(label) => `Status2: ${label}`} />
-                  <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="small text-muted mt-2">
-              Total: <span className="fw-semibold">{formatCurrency(status2Pie.total)}</span>
-            </div>
+    return (
+      <div className="card shadow-sm border-0">
+        <div className="card-body">
+          <div className="d-flex align-items-center justify-content-between mb-3">
+            <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Komposisi Status2 (Top)</div>
+            <span className="badge text-bg-warning-subtle border border-warning-subtle text-warning">Donut</span>
           </div>
+          <div style={{ height: 360 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={status2Pie.data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={80} outerRadius={130} paddingAngle={2}>
+                  {status2Pie.data.map((_, index) => (
+                    <Cell key={`slice-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={formatCurrency} labelFormatter={(label) => `Status2: ${label}`} />
+                <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="small text-muted mt-2">Total: <span className="fw-semibold">{formatCurrency(status2Pie.total)}</span></div>
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="mb-4">
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Charts</div>
+        <ul className="nav nav-pills">
+          <li className="nav-item">
+            <button className={`nav-link ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')} type="button">Team</button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${tab === 'billing' ? 'active' : ''}`} onClick={() => setTab('billing')} type="button">Status</button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${tab === 'trend' ? 'active' : ''}`} onClick={() => setTab('trend')} type="button">Trend</button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${tab === 'composition' ? 'active' : ''}`} onClick={() => setTab('composition')} type="button">Donut</button>
+          </li>
+        </ul>
+      </div>
+      {renderChart()}
     </div>
-    </>
   );
 };
 
