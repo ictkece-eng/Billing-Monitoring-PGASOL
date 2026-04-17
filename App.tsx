@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BudgetRecord } from './types';
 import { CONTRACT_VALUE_IDR, MOCK_DATA, STATUS_COLS } from './constants';
@@ -11,6 +10,7 @@ import Status2DetailModal from './components/Status2DetailModal';
 import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
 import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
+import NotaPembatalanMenu from './components/NotaPembatalanMenu';
 
 type PeriodeOption = { value: string; label: string };
 
@@ -1263,79 +1263,20 @@ const App: React.FC = () => {
     setAiInsight(null);
   }, [filteredData]);
 
+  const [activeCustomPage, setActiveCustomPage] = useState<'notaPembatalan' | null>(null);
+
   return (
-    <div className="min-vh-100 bg-body-tertiary">
-      {pinModalOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className={`modal-backdrop fade show ${pinModalSource === 'startup' ? '' : ''}`}
-            onClick={pinModalSource === 'startup' ? undefined : dismissPinModal}
-            style={{ cursor: pinModalSource === 'startup' ? 'default' : 'pointer' }}
-          />
-
-          {/* Modal */}
-          <div className="modal fade show d-block" role="dialog" aria-modal="true">
-            <div className="modal-dialog modal-dialog-centered" role="document">
-              <div className="modal-content border-0 shadow">
-                <div className="modal-header">
-                  <div className="d-flex flex-column">
-                    <h5 className="modal-title fw-black mb-0">Login</h5>
-                    <small className="text-muted">Masukkan PIN untuk masuk.</small>
-                  </div>
-                  {pinModalSource !== 'startup' && (
-                    <button
-                      type="button"
-                      className="btn-close"
-                      aria-label="Tutup"
-                      title="Tutup (Esc)"
-                      onClick={dismissPinModal}
-                    />
-                  )}
-                </div>
-
-                <div className="modal-body">
-                  <label className="form-label small text-uppercase text-muted fw-bold">PIN</label>
-                  <input
-                    ref={pinInputRef}
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="current-password"
-                    className={`form-control ${pinError ? 'is-invalid' : ''}`}
-                    placeholder="••••••"
-                    value={pinValue}
-                    onChange={(e) => {
-                      setPinError(null);
-                      setPinValue(e.target.value);
-                    }}
-                  />
-                  {pinError && <div className="invalid-feedback d-block">{pinError}</div>}
-
-                  {pinModalSource !== 'startup' && (
-                    <div className="mt-2 small text-muted">
-                      Tips: <span className="fw-semibold">Ctrl+Shift+L</span> untuk mengunci lagi.
-                    </div>
-                  )}
-                </div>
-
-                <div className="modal-footer">
-                  {pinModalSource !== 'startup' && (
-                    <button type="button" className="btn btn-outline-secondary" onClick={closePinModal}>
-                      Batal
-                    </button>
-                  )}
-                  <button type="button" className="btn btn-primary" onClick={submitPinModal}>
-                    Masuk
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* On first open (unauthenticated), show ONLY the login modal (no app UI/data behind). */}
-      {!isAuthenticated ? null : (
+    <div>
+      {/* Navigasi utama */}
+      <nav style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+        <button onClick={() => { setActivePage('home'); setActiveCustomPage(null); }}>Dashboard</button>
+        <button onClick={() => { setActivePage('tables'); setActiveCustomPage(null); }}>Tabel</button>
+        <button onClick={() => setActiveCustomPage('notaPembatalan')}>Nota Pembatalan</button>
+      </nav>
+      {/* Konten utama */}
+      {activeCustomPage === 'notaPembatalan' ? (
+        <NotaPembatalanMenu />
+      ) : (
         <>
           {isInputOpen && (
             <BudgetInputForm 
