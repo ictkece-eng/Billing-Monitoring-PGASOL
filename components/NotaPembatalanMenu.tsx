@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ImportNotaPajak from './ImportNotaPajak';
 import { ocrImageToText } from '../services/ocrService';
 import { parseNotaPajakToPembatalan, NotaPembatalanData } from '../services/notaPembatalanParser';
+import { exportNotaPembatalanToPDF } from '../services/notaPembatalanExport';
 
 const NotaPembatalanMenu: React.FC = () => {
   const [ocrText, setOcrText] = useState<string>('');
@@ -56,6 +57,7 @@ const NotaPembatalanMenu: React.FC = () => {
               <tr><td><b>Nilai</b></td><td>{parsed.nilai}</td></tr>
             </tbody>
           </table>
+          <button style={{ marginTop: 16 }} onClick={() => exportNotaPembatalanToPDF(parsed)}>Download PDF</button>
         </div>
       )}
     </div>
