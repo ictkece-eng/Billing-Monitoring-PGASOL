@@ -11,6 +11,10 @@ import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
 import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
 import NotaPembatalanMenu from './components/NotaPembatalanMenu';
+import ImportNotaPajak from './ImportNotaPajak';
+import { ocrImageToText } from '../services/ocrService';
+import { parseNotaPajakToPembatalan, NotaPembatalanData } from '../services/notaPembatalanParser';
+import { exportNotaPembatalanToPDF } from '../services/notaPembatalanExport';
 
 type PeriodeOption = { value: string; label: string };
 
@@ -1552,7 +1556,7 @@ const App: React.FC = () => {
                   {formatCurrency(totalValue)}
                 </div>
                 <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
-                  <span className="badge text-bg-light">
+                  <span className="badge text-light">
                     {filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}
                   </span>
                   {searchQuery && <span className="small opacity-75 fst-italic text-truncate">Filtered by "{searchQuery}"</span>}
