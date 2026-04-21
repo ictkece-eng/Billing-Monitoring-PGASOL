@@ -882,6 +882,21 @@ const App: React.FC = () => {
     return `Est. habis ${formatYearMonthKeyToLabel(projectedKey)}`;
   }, [estimatedMonthsRemainingFiltered, latestFilteredPeriodKey, remainingValueFiltered]);
 
+  const formatCurrencyInline = (val: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+
+  const prokrosaFormulaLabel = useMemo(() => {
+    if (overBudgetValue > 0) return 'Dasar hitung: anggaran sudah melampaui nilai kontrak';
+    if (monthlyRunRate.averagePerMonth <= 0) return 'Dasar hitung: avg serapan bulanan belum tersedia';
+    return `Dasar hitung: ${formatCurrencyInline(remainingValue)} ÷ ${formatCurrencyInline(monthlyRunRate.averagePerMonth)}/bln`;
+  }, [monthlyRunRate.averagePerMonth, overBudgetValue, remainingValue]);
+
+  const prokrosaFormulaLabelFiltered = useMemo(() => {
+    if (overBudgetValueFiltered > 0) return 'Filtered: anggaran sudah melampaui kontrak';
+    if (monthlyRunRateFiltered.averagePerMonth <= 0) return 'Filtered: avg serapan bulanan belum tersedia';
+    return `Filtered basis: ${formatCurrencyInline(remainingValueFiltered)} ÷ ${formatCurrencyInline(monthlyRunRateFiltered.averagePerMonth)}/bln`;
+  }, [monthlyRunRateFiltered.averagePerMonth, overBudgetValueFiltered, remainingValueFiltered]);
+
   const normalizeStatus2 = (s: string | undefined | null) => (s || '').trim();
   const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
 
@@ -1790,6 +1805,9 @@ const App: React.FC = () => {
                             ? 'Periode belum terbaca sebagai bulan'
                             : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
                         </p>
+                        <p className="kpi-muted text-[12px] text-indigo-900/75 mt-2 leading-snug">
+                          {prokrosaFormulaLabel}
+                        </p>
                         {estimatedContractEndLabel && (
                           <p className="kpi-muted text-[12px] text-indigo-800 font-semibold mt-2 leading-snug">
                             {estimatedContractEndLabel}
@@ -1805,6 +1823,9 @@ const App: React.FC = () => {
                             ? ` • Avg ${formatCurrency(monthlyRunRateFiltered.averagePerMonth)}/bln`
                             : ''}
                           {estimatedContractEndLabelFiltered ? ` • ${estimatedContractEndLabelFiltered}` : ''}
+                        </p>
+                        <p className="kpi-muted text-[12px] text-indigo-900/75 mt-2 leading-snug">
+                          {prokrosaFormulaLabelFiltered}
                         </p>
                       </div>
                     </div>
