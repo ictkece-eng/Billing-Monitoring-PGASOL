@@ -931,17 +931,31 @@ const App: React.FC = () => {
     return canonicalPrefix || s;
   };
 
-  // Build status2 list dynamically (one card per unique status2 in the current filtered view)
+  // Build status2 list from the full source column so all status buckets remain visible,
+  // while the numbers inside each card still follow the active filter.
   const status2CardList = useMemo(() => {
-    const map = new Map<string, string>(); // key -> display label
-    for (const item of filteredData) {
+    const map = new Map<string, { key: string; label: string; order: number }>();
+    let order = 0;
+
+    for (const col of STATUS_COLS) {
+      const raw = canonicalizeStatus2(col);
+      const key = normalizeStatus2Key(raw) || 'manual';
+      if (!map.has(key)) {
+        map.set(key, { key, label: raw || 'manual', order: order++ });
+      }
+    }
+
+    for (const item of data) {
       const raw = canonicalizeStatus2(item.status2);
       const key = normalizeStatus2Key(raw) || 'manual';
       const label = raw || 'manual';
-      if (!map.has(key)) map.set(key, label);
+      if (!map.has(key)) {
+        map.set(key, { key, label, order: order++ });
+      }
     }
-    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
-  }, [filteredData]);
+
+    return Array.from(map.values()).sort((a, b) => a.order - b.order);
+  }, [data]);
 
   // Stats per status2 (dynamic): sum + count
   const status2Stats = useMemo<Record<string, { sum: number; count: number }>>(() => {
@@ -955,10 +969,10 @@ const App: React.FC = () => {
     return stats;
   }, [filteredData]);
 
-  // Sort cards by total (desc) so the most important statuses show first
+  // Keep card order stable based on status2 source order; values still follow active filters.
   const sortedStatus2Cards = useMemo(() => {
-    return [...status2CardList].sort((a, b) => (status2Stats[b.key]?.sum || 0) - (status2Stats[a.key]?.sum || 0));
-  }, [status2CardList, status2Stats]);
+    return status2CardList.map(({ key, label }) => ({ key, label }));
+  }, [status2CardList]);
 
   // Integrity check: sum of all status2 cards should equal the Grand Total Tagihan (for current filteredData).
   // If there is a mismatch, it indicates data issues (e.g., NaN/Infinity, unexpected parsing) rather than UI math.
