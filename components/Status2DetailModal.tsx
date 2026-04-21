@@ -69,7 +69,17 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
             <div className="modal-body">
               <div className="table-responsive border rounded-3">
                 <div style={{ maxHeight: '68vh', overflow: 'auto' }}>
-                  <table className="table table-sm table-hover align-middle mb-0">
+                  <table className="table table-sm table-hover align-middle mb-0" style={{ tableLayout: 'fixed', minWidth: 1100 }}>
+                    <colgroup>
+                      <col style={{ width: 56 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 130 }} />
+                      <col style={{ width: 180 }} />
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 160 }} />
+                      <col style={{ width: 'auto' }} />
+                    </colgroup>
                     <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                       <tr className="small text-uppercase text-muted" style={{ letterSpacing: '.06em' }}>
                         <th style={{ width: 56 }}>#</th>
@@ -93,15 +103,15 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                         displayRows.map((r, idx) => (
                           <tr key={r.id || `${idx}`}>
                             <td className="text-muted tabular-nums">{idx + 1}</td>
-                            <td className="text-nowrap">{r.periode}</td>
-                            <td className="fw-semibold">{r.tim}</td>
-                            <td className="fw-semibold">{r.namaUser}</td>
-                            <td className="text-nowrap">{r.noRO || '-'}</td>
-                            <td className="text-nowrap">{r.noBAST || '-'}</td>
+                            <td className="text-nowrap" title={r.periode}>{r.periode}</td>
+                            <td className="fw-semibold text-break" title={r.tim}>{r.tim || '-'}</td>
+                            <td className="fw-semibold text-break" title={r.namaUser}>{r.namaUser || '-'}</td>
+                            <td className="text-nowrap text-truncate" style={{ maxWidth: 120 }} title={r.noRO || '-'}>{r.noRO || '-'}</td>
+                            <td className="text-nowrap text-truncate" style={{ maxWidth: 150 }} title={r.noBAST || '-'}>{r.noBAST || '-'}</td>
                             <td className="text-end fw-bold font-monospace safe-number" title={formatCurrency(r.nilaiTagihan)}>
                               {formatCurrency(r.nilaiTagihan)}
                             </td>
-                            <td style={{ minWidth: 260 }}>{r.keterangan || '-'}</td>
+                            <td className="text-break" style={{ minWidth: 260, lineHeight: 1.4 }} title={r.keterangan || '-'}>{r.keterangan || '-'}</td>
                           </tr>
                         ))
                       )}
