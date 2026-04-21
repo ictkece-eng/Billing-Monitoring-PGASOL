@@ -48,9 +48,15 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
       <div className="modal fade show d-block" role="dialog" aria-modal="true">
         <div className="modal-dialog modal-dialog-centered modal-xl" role="document">
           <div className="modal-content border-0 shadow">
-            <div className="modal-header">
+            <div
+              className="modal-header border-0 pb-3"
+              style={{ background: 'linear-gradient(135deg, rgba(13,110,253,0.07), rgba(79,70,229,0.05))' }}
+            >
               <div className="d-flex flex-column">
-                <h5 className="modal-title text-truncate" title={title}>{title}</h5>
+                <div className="small text-uppercase text-muted fw-bold mb-1" style={{ letterSpacing: '.08em' }}>
+                  Ringkasan Detail Status2
+                </div>
+                <h5 className="modal-title text-truncate fw-black" title={title}>{title}</h5>
                 <div className="d-flex flex-wrap gap-2 mt-2">
                   <span className="badge border text-primary-emphasis bg-primary-subtle border-primary-subtle px-3 py-2">
                     Total: <span className="safe-number-inline tabular-nums">{formatCurrency(total)}</span>
@@ -63,10 +69,19 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                   )}
                 </div>
               </div>
-              <button type="button" className="btn-close" aria-label="Tutup" title="Tutup (Esc)" onClick={onClose} />
+              <button
+                type="button"
+                className="btn btn-sm btn-light border rounded-circle d-inline-flex align-items-center justify-content-center p-0 flex-shrink-0"
+                style={{ width: 36, height: 36 }}
+                aria-label="Tutup"
+                title="Tutup (Esc)"
+                onClick={onClose}
+              >
+                <i className="bi bi-x-lg" aria-hidden="true" />
+              </button>
             </div>
 
-            <div className="modal-body">
+            <div className="modal-body pt-3">
               <div className="table-responsive border rounded-3">
                 <div style={{ maxHeight: '68vh', overflow: 'auto' }}>
                   <table className="table table-sm table-hover table-striped align-middle mb-0" style={{ tableLayout: 'fixed', minWidth: 1140 }}>
@@ -125,8 +140,9 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                 </div>
               </div>
 
-              <div className="small text-muted mt-2">
-                Tips: gunakan filter periode/pencarian di atas untuk mempersempit data sebelum membuka popup.
+              <div className="small text-muted mt-3 d-flex flex-wrap align-items-center gap-2">
+                <span className="badge rounded-pill text-bg-light border px-2 py-1">Tips</span>
+                <span>Gunakan filter periode atau pencarian di atas untuk mempersempit data sebelum membuka popup.</span>
               </div>
             </div>
           </div>
