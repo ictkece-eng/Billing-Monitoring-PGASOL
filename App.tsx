@@ -157,6 +157,18 @@ const formatMonthNumberToLabel = (month: number) => {
   return new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(new Date(2000, month - 1, 1));
 };
 
+const shiftYearMonthKey = (key: string, monthsToAdd: number) => {
+  const m = key.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || month < 1 || month > 12) return null;
+
+  const d = new Date(year, month - 1 + monthsToAdd, 1);
+  return toYearMonthKey(d.getFullYear(), d.getMonth() + 1);
+};
+
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [filterYear, setFilterYear] = useState<string>(ALL_YEAR_VALUE);
@@ -523,7 +535,7 @@ const App: React.FC = () => {
 
   // Hidden gesture: click the app logo 7x quickly to open tools unlock prompt.
   // This avoids showing admin menus publicly while still allowing access when needed.
-  const toolsGestureRef = useRef<{ count: number; startedAt: number; timer: ReturnType<typeof setTimeout> | null }>(
+  const toolsGestureRef = useRef<{ count: number; startedAt: number; timer: number | null }>(
     { count: 0, startedAt: 0, timer: null }
   );
 
@@ -822,6 +834,22 @@ const App: React.FC = () => {
     };
   }, [filteredData]);
 
+  const latestPeriodKey = useMemo(() => {
+    const keys = data
+      .map(row => normalizePeriodeToYearMonthKey(row.periode))
+      .filter((key): key is string => Boolean(key))
+      .sort();
+    return keys.length > 0 ? keys[keys.length - 1] : null;
+  }, [data]);
+
+  const latestFilteredPeriodKey = useMemo(() => {
+    const keys = filteredData
+      .map(row => normalizePeriodeToYearMonthKey(row.periode))
+      .filter((key): key is string => Boolean(key))
+      .sort();
+    return keys.length > 0 ? keys[keys.length - 1] : null;
+  }, [filteredData]);
+
   const estimatedMonthsRemaining = useMemo(() => {
     if (overBudgetValue > 0) return 0;
     const avg = monthlyRunRate.averagePerMonth;
@@ -835,6 +863,24 @@ const App: React.FC = () => {
     if (avg <= 0) return null;
     return remainingValueFiltered / avg;
   }, [monthlyRunRateFiltered.averagePerMonth, remainingValueFiltered, overBudgetValueFiltered]);
+
+  const estimatedContractEndLabel = useMemo(() => {
+    if (!latestPeriodKey || estimatedMonthsRemaining === null) return null;
+    if (remainingValue <= 0) return `Sudah habis per ${formatYearMonthKeyToLabel(latestPeriodKey)}`;
+
+    const projectedKey = shiftYearMonthKey(latestPeriodKey, Math.max(1, Math.ceil(estimatedMonthsRemaining)));
+    if (!projectedKey) return null;
+    return `Estimasi habis ${formatYearMonthKeyToLabel(projectedKey)}`;
+  }, [estimatedMonthsRemaining, latestPeriodKey, remainingValue]);
+
+  const estimatedContractEndLabelFiltered = useMemo(() => {
+    if (!latestFilteredPeriodKey || estimatedMonthsRemainingFiltered === null) return null;
+    if (remainingValueFiltered <= 0) return `Habis per ${formatYearMonthKeyToLabel(latestFilteredPeriodKey)}`;
+
+    const projectedKey = shiftYearMonthKey(latestFilteredPeriodKey, Math.max(1, Math.ceil(estimatedMonthsRemainingFiltered)));
+    if (!projectedKey) return null;
+    return `Est. habis ${formatYearMonthKeyToLabel(projectedKey)}`;
+  }, [estimatedMonthsRemainingFiltered, latestFilteredPeriodKey, remainingValueFiltered]);
 
   const normalizeStatus2 = (s: string | undefined | null) => (s || '').trim();
   const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
@@ -1744,6 +1790,11 @@ const App: React.FC = () => {
                             ? 'Periode belum terbaca sebagai bulan'
                             : `Avg ${formatCurrency(monthlyRunRate.averagePerMonth)}/bln (rentang ${monthlyRunRate.monthsCount} bln, data ${monthlyRunRate.monthsWithData} bln)`}
                         </p>
+                        {estimatedContractEndLabel && (
+                          <p className="kpi-muted text-[12px] text-indigo-800 font-semibold mt-2 leading-snug">
+                            {estimatedContractEndLabel}
+                          </p>
+                        )}
                         <p className="kpi-muted text-[12px] text-indigo-900/70 mt-2 pt-2 border-t border-indigo-200/70 leading-snug">
                           Filtered: {
                             estimatedMonthsRemainingFiltered === null
@@ -1753,6 +1804,7 @@ const App: React.FC = () => {
                           {monthlyRunRateFiltered.mode === 'range' && monthlyRunRateFiltered.averagePerMonth > 0
                             ? ` • Avg ${formatCurrency(monthlyRunRateFiltered.averagePerMonth)}/bln`
                             : ''}
+                          {estimatedContractEndLabelFiltered ? ` • ${estimatedContractEndLabelFiltered}` : ''}
                         </p>
                       </div>
                     </div>
