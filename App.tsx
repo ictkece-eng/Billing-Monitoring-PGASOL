@@ -1975,84 +1975,60 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="rounded-4 border border-slate-200 bg-white p-3 p-md-4 shadow-sm">
-                  <div className="d-flex align-items-center gap-2 mb-3 small text-muted fw-semibold">
-                    <span className="badge rounded-pill text-bg-light border text-secondary px-3 py-2">Start</span>
-                    <i className="bi bi-arrow-right" aria-hidden="true" />
-                    <span>Flow proses status billing berdasarkan filter aktif</span>
-                    <i className="bi bi-arrow-right ms-auto d-none d-md-inline" aria-hidden="true" />
-                    <span className="badge rounded-pill text-bg-success px-3 py-2 d-none d-md-inline-flex">Paid</span>
-                  </div>
-
-                  <div className="d-flex align-items-stretch gap-3 overflow-auto pb-2">
-                    {sortedStatus2Cards.map(({ key, label }, index) => {
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {sortedStatus2Cards.map(({ key, label }) => {
                     const theme = getStatusTheme(label);
                     const value = status2Stats[key]?.sum || 0;
                     const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
                     const isInactive = value <= 0;
                     
                     return (
-                      <React.Fragment key={key}>
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
+                      <div
+                        key={key}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setStatus2ModalKey(key);
+                          setStatus2ModalLabel(label);
+                          setStatus2ModalOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
                             setStatus2ModalKey(key);
                             setStatus2ModalLabel(label);
                             setStatus2ModalOpen(true);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setStatus2ModalKey(key);
-                              setStatus2ModalLabel(label);
-                              setStatus2ModalOpen(true);
-                            }
-                          }}
-                          className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden position-relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 flex-shrink-0 ${isInactive ? 'opacity-75' : ''}`}
-                          style={{ width: 220, minWidth: 220 }}
-                          title="Klik untuk melihat detail data"
-                        >
-                          <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
-                            <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} px-2 py-1`}>
-                              Step {index + 1}
-                            </span>
-                            <span className={`small fw-bold ${theme.text}`}>{percentage.toFixed(1)}%</span>
-                          </div>
-
-                          <div className={`position-absolute top-0 end-0 translate-middle-y mt-2 me-2 w-8 h-8 rounded-circle opacity-10 ${theme.bar}`}></div>
-
-                          <p className={`text-[10px] font-extrabold uppercase tracking-tight mb-2 ${theme.text}`} title={label}>
-                            {label}
-                          </p>
-                          <p className="text-base font-black text-slate-900 leading-none safe-number mb-2" title={formatCurrency(value)}>
-                            {formatCurrency(value)}
-                          </p>
-
-                          <div className="small text-muted mb-3">
-                            {isInactive ? 'Belum ada nilai pada filter aktif' : 'Aktif pada filter yang dipilih'}
-                          </div>
-
-                          <div className="w-100 bg-white/50 h-1.5 rounded-pill overflow-hidden border border-black/5">
-                            <div
-                              className={`${theme.bar} h-full rounded-pill transition-all duration-1000`}
+                          }
+                        }}
+                        className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${isInactive ? 'opacity-75' : ''}`}
+                        title="Klik untuk melihat detail data"
+                      >
+                        <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
+                        
+                        <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
+                          {label}
+                        </p>
+                        <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
+                          {formatCurrency(value)}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mt-3 gap-2">
+                          <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
+                            {percentage.toFixed(1)}% of total
+                          </span>
+                          <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5 flex-shrink-0">
+                            <div 
+                              className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
                               style={{ width: `${percentage}%` }}
-                            />
+                            ></div>
                           </div>
                         </div>
-                        {index < sortedStatus2Cards.length - 1 && (
-                          <div className="d-flex align-items-center justify-content-center flex-shrink-0 text-slate-400" style={{ minWidth: 28 }} aria-hidden="true">
-                            <i className="bi bi-arrow-right-circle-fill fs-5" />
-                          </div>
+                        {isInactive && (
+                          <div className="small text-muted mt-2">Belum ada nilai pada filter aktif</div>
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   })}
-
-                    <div className="d-flex align-items-center justify-content-center flex-shrink-0 d-md-none" aria-hidden="true">
-                      <span className="badge rounded-pill text-bg-success px-3 py-2">Paid</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
