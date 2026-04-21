@@ -267,6 +267,8 @@ const App: React.FC = () => {
 
   const isViewer = role === 'viewer' && !toolsUnlocked;
   const isAuthenticated = role !== 'unknown';
+  const roleDisplayLabel = toolsUnlocked ? 'Admin Mode' : role === 'viewer' ? 'Viewer Mode' : 'User Mode';
+  const toolsStatusLabel = toolsUnlocked ? 'Tools: Unlocked' : 'Tools: Locked';
 
   const logout = () => {
     // Reset to viewer state (does not delete data; admin tools remain locked until PIN entered again)
@@ -1641,13 +1643,13 @@ const App: React.FC = () => {
                       title="User menu"
                     >
                       <i className="bi bi-person-circle me-2" aria-hidden="true" />
-                      {role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'User'}
+                      {roleDisplayLabel}
                     </button>
                     <ul className="dropdown-menu dropdown-menu-end">
                       <li>
                         <div className="dropdown-item-text">
-                          <div className="fw-semibold">{role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'User'}</div>
-                          <div className="small text-muted">{toolsUnlocked ? 'Tools: Unlocked' : 'Tools: Locked'}</div>
+                          <div className="fw-semibold">{roleDisplayLabel}</div>
+                          <div className="small text-muted">{toolsStatusLabel}</div>
                           {!toolsUnlocked && <div className="small text-primary mt-1">Klik “Masuk Admin” untuk membuka tools.</div>}
                         </div>
                       </li>
