@@ -306,6 +306,7 @@ const App: React.FC = () => {
   const [pinModalSource, setPinModalSource] = useState<'shortcut' | 'url' | 'hash' | 'gesture' | 'manual' | 'startup'>('manual');
   const [pinValue, setPinValue] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
+  const [pinVisible, setPinVisible] = useState(false);
   const pinInputRef = useRef<HTMLInputElement | null>(null);
 
   const setToolsUnlockedPersisted = (next: boolean) => {
@@ -329,6 +330,7 @@ const App: React.FC = () => {
     setPinModalSource(source);
     setPinError(null);
     setPinValue('');
+    setPinVisible(false);
     setPinModalOpen(true);
     // Focus input next tick
     queueMicrotask(() => {
@@ -340,6 +342,7 @@ const App: React.FC = () => {
     setPinModalOpen(false);
     setPinError(null);
     setPinValue('');
+    setPinVisible(false);
   };
 
   const dismissPinModal = () => {
@@ -2025,6 +2028,100 @@ const App: React.FC = () => {
           open={uploadHistoryOpen}
           onClose={() => setUploadHistoryOpen(false)}
         />
+
+        {pinModalOpen && (
+          <div
+            className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3"
+            style={{ background: 'rgba(15, 23, 42, 0.42)', zIndex: 1080 }}
+          >
+            <div
+              className="card border-0 shadow-lg overflow-hidden"
+              style={{ width: '100%', maxWidth: 430, borderRadius: 22 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="admin-pin-title"
+            >
+              <div
+                className="px-4 px-md-5 pt-4 pt-md-5 pb-3"
+                style={{ background: 'linear-gradient(135deg, rgba(13,110,253,0.10), rgba(99,102,241,0.08))' }}
+              >
+                <div className="d-flex align-items-start justify-content-between gap-3">
+                  <div className="d-flex align-items-start gap-3">
+                    <div
+                      className="d-inline-flex align-items-center justify-content-center rounded-4 text-primary"
+                      style={{ width: 52, height: 52, background: 'rgba(13,110,253,0.12)' }}
+                    >
+                      <i className="bi bi-shield-lock-fill fs-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 id="admin-pin-title" className="h5 fw-black mb-1">Admin Access</h2>
+                      <p className="text-muted mb-0 small">
+                        Masukkan PIN admin untuk membuka menu tools, upload, dan history.
+                      </p>
+                    </div>
+                  </div>
+                  {pinModalSource !== 'startup' && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-light border"
+                      onClick={dismissPinModal}
+                      aria-label="Tutup popup PIN"
+                    >
+                      <i className="bi bi-x-lg" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="card-body px-4 px-md-5 py-4">
+                <div className="mb-3">
+                  <label htmlFor="admin-pin-input" className="form-label small text-uppercase text-muted fw-bold">
+                    PIN Admin
+                  </label>
+                  <div className="input-group input-group-lg">
+                    <span className="input-group-text bg-white">
+                      <i className="bi bi-key-fill text-primary" aria-hidden="true" />
+                    </span>
+                    <input
+                      id="admin-pin-input"
+                      ref={pinInputRef}
+                      type={pinVisible ? 'text' : 'password'}
+                      className={`form-control ${pinError ? 'is-invalid' : ''}`}
+                      placeholder="Masukkan PIN admin"
+                      value={pinValue}
+                      onChange={(e) => {
+                        setPinValue(e.target.value);
+                        if (pinError) setPinError(null);
+                      }}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={() => setPinVisible(prev => !prev)}
+                      aria-label={pinVisible ? 'Sembunyikan PIN' : 'Lihat PIN'}
+                    >
+                      <i className={`bi ${pinVisible ? 'bi-eye-slash' : 'bi-eye'}`} aria-hidden="true" />
+                    </button>
+                  </div>
+                  {pinError && <div className="text-danger small mt-2">{pinError}</div>}
+                </div>
+
+                <div className="d-flex flex-column flex-sm-row gap-2 justify-content-end mt-4">
+                  {pinModalSource !== 'startup' && (
+                    <button type="button" className="btn btn-light border" onClick={dismissPinModal}>
+                      Batal
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={submitPinModal}>
+                    <i className="bi bi-unlock-fill me-2" aria-hidden="true" />
+                    Buka Tools Admin
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Content */}
         {data.length === 0 ? (
