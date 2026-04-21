@@ -1492,7 +1492,16 @@ const App: React.FC = () => {
                     >
                       Budget Monitoring
                     </h1>
-                    <div className="small text-muted text-uppercase" style={{ letterSpacing: '.08em' }}>Asset Management & Cost Control</div>
+                    <div className="d-flex flex-wrap align-items-center gap-2 mt-1">
+                      <div className="small text-muted text-uppercase" style={{ letterSpacing: '.08em' }}>Asset Management & Cost Control</div>
+                      <span
+                        className={`badge rounded-pill ${toolsUnlocked ? 'text-bg-success' : 'text-bg-secondary'}`}
+                        title={toolsStatusLabel}
+                        style={{ letterSpacing: '.02em' }}
+                      >
+                        {toolsUnlocked ? 'Admin Mode' : 'Viewer Mode'}
+                      </span>
+                    </div>
                     <div className="small text-muted mt-1" style={{ letterSpacing: '.02em' }}>
                       {breadcrumb.join(' / ')}
                     </div>
