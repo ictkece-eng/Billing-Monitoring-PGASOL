@@ -11,15 +11,16 @@ import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
 import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
 import NotaPembatalanMenu from './components/NotaPembatalanMenu';
-import ImportNotaPajak from './ImportNotaPajak';
-import { ocrImageToText } from '../services/ocrService';
-import { parseNotaPajakToPembatalan, NotaPembatalanData } from '../services/notaPembatalanParser';
-import { exportNotaPembatalanToPDF } from '../services/notaPembatalanExport';
+import ImportNotaPajak from './components/ImportNotaPajak';
+import { ocrImageToText } from './services/ocrService';
+import { parseNotaPajakToPembatalan, NotaPembatalanData } from './services/notaPembatalanParser';
+import { exportNotaPembatalanToPDF } from './services/notaPembatalanExport';
 
 type PeriodeOption = { value: string; label: string };
 
-const ALL_PERIODE_VALUE = 'All';
 const ALL_PERIODE_LABEL = 'Semua Periode';
+const ALL_YEAR_VALUE = 'AllYear';
+const ALL_MONTH_VALUE = 'AllMonth';
 
 const MONTH_TOKEN_MAP: Record<string, number> = {
   jan: 1,
@@ -140,9 +141,26 @@ const formatYearMonthKeyToLabel = (key: string) => {
   return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
 };
 
+const extractYearMonthParts = (raw?: string): { year: number; month: number; key: string } | null => {
+  const key = normalizePeriodeToYearMonthKey(raw);
+  if (!key) return null;
+  const m = key.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || month < 1 || month > 12) return null;
+  return { year, month, key };
+};
+
+const formatMonthNumberToLabel = (month: number) => {
+  if (month < 1 || month > 12) return String(month);
+  return new Intl.DateTimeFormat('id-ID', { month: 'long' }).format(new Date(2000, month - 1, 1));
+};
+
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
-  const [filterPeriode, setFilterPeriode] = useState<string>(ALL_PERIODE_VALUE);
+  const [filterYear, setFilterYear] = useState<string>(ALL_YEAR_VALUE);
+  const [filterMonth, setFilterMonth] = useState<string>(ALL_MONTH_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [activePage, setActivePage] = useState<'home' | 'tables'>('home');
@@ -597,36 +615,81 @@ const App: React.FC = () => {
     }
   };
 
-  const periodes = useMemo<PeriodeOption[]>(() => {
-    if (data.length === 0) return [{ value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL }];
+  const periodOptions = useMemo(() => {
+    const grouped = new Map<number, number[]>();
 
-    const keys = Array.from(
-      new Set<string>(
-        data
-          .map(d => normalizePeriodeToYearMonthKey(d.periode))
-          .filter((k): k is string => Boolean(k))
-      )
-    ).sort();
+    for (const row of data) {
+      const parts = extractYearMonthParts(row.periode);
+      if (!parts) continue;
 
-    return [
-      { value: ALL_PERIODE_VALUE, label: ALL_PERIODE_LABEL },
-      ...keys.map(k => ({ value: k, label: formatYearMonthKeyToLabel(k) })),
+      const existingMonths = grouped.get(parts.year) ?? [];
+      if (!existingMonths.includes(parts.month)) {
+        existingMonths.push(parts.month);
+        existingMonths.sort((a, b) => a - b);
+      }
+      grouped.set(parts.year, existingMonths);
+    }
+
+    const yearOptions: PeriodeOption[] = [
+      { value: ALL_YEAR_VALUE, label: ALL_PERIODE_LABEL },
+      ...Array.from(grouped.keys())
+        .sort((a, b) => b - a)
+        .map(year => ({ value: String(year), label: String(year) })),
     ];
-  }, [data]);
 
-  // Keep selected periode valid (avoids messy/blank select labels if underlying options change)
+    const monthOptions: PeriodeOption[] =
+      filterYear === ALL_YEAR_VALUE
+        ? [{ value: ALL_MONTH_VALUE, label: 'Semua Bulan' }]
+        : [
+            { value: ALL_MONTH_VALUE, label: 'Semua Bulan' },
+            ...((grouped.get(Number(filterYear)) ?? [])
+              .slice()
+              .sort((a, b) => a - b)
+              .map(month => ({
+                value: String(month).padStart(2, '0'),
+                label: formatMonthNumberToLabel(month),
+              }))),
+          ];
+
+    return { grouped, yearOptions, monthOptions };
+  }, [data, filterYear]);
+
+  // Keep selected year/month valid when the underlying data changes.
   useEffect(() => {
-    if (filterPeriode === ALL_PERIODE_VALUE) return;
-    const exists = periodes.some(p => p.value === filterPeriode);
-    if (!exists) setFilterPeriode(ALL_PERIODE_VALUE);
-  }, [filterPeriode, periodes]);
+    if (filterYear === ALL_YEAR_VALUE) {
+      if (filterMonth !== ALL_MONTH_VALUE) setFilterMonth(ALL_MONTH_VALUE);
+      return;
+    }
+
+    const yearExists = periodOptions.yearOptions.some(option => option.value === filterYear);
+    if (!yearExists) {
+      setFilterYear(ALL_YEAR_VALUE);
+      setFilterMonth(ALL_MONTH_VALUE);
+      return;
+    }
+
+    const monthExists = periodOptions.monthOptions.some(option => option.value === filterMonth);
+    if (!monthExists) setFilterMonth(ALL_MONTH_VALUE);
+  }, [filterMonth, filterYear, periodOptions.monthOptions, periodOptions.yearOptions]);
+
+  const activePeriodeLabel = useMemo(() => {
+    if (filterYear === ALL_YEAR_VALUE) return ALL_PERIODE_LABEL;
+    if (filterMonth === ALL_MONTH_VALUE) return `Tahun ${filterYear}`;
+    return formatYearMonthKeyToLabel(`${filterYear}-${filterMonth}`);
+  }, [filterMonth, filterYear]);
 
   const filteredData = useMemo(() => {
     let result = data;
     
     // Period Filtering
-    if (filterPeriode !== ALL_PERIODE_VALUE) {
-      result = result.filter(d => normalizePeriodeToYearMonthKey(d.periode) === filterPeriode);
+    if (filterYear !== ALL_YEAR_VALUE) {
+      result = result.filter(d => {
+        const parts = extractYearMonthParts(d.periode);
+        if (!parts) return false;
+        if (String(parts.year) !== filterYear) return false;
+        if (filterMonth !== ALL_MONTH_VALUE && String(parts.month).padStart(2, '0') !== filterMonth) return false;
+        return true;
+      });
     }
 
     // Search Query Filtering
@@ -644,7 +707,7 @@ const App: React.FC = () => {
     }
 
     return result;
-  }, [data, filterPeriode, searchQuery]);
+  }, [data, filterMonth, filterYear, searchQuery]);
 
   const totalValue = useMemo(
     () => filteredData.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
@@ -1487,17 +1550,37 @@ const App: React.FC = () => {
             <div className="card shadow-sm border-0">
               <div className="card-body">
                 <div className="row g-3">
-                  <div className="col-12">
-                    <label className="form-label small text-uppercase text-muted fw-bold">Filter Periode</label>
-                <select
-                  value={filterPeriode}
-                  onChange={(e) => setFilterPeriode(e.target.value)}
-                  className="form-select"
-                >
-                  {periodes.map(p => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
+                  <div className="col-12 col-md-6">
+                    <label className="form-label small text-uppercase text-muted fw-bold">Filter Tahun</label>
+                    <select
+                      value={filterYear}
+                      onChange={(e) => {
+                        const nextYear = e.target.value;
+                        setFilterYear(nextYear);
+                        setFilterMonth(ALL_MONTH_VALUE);
+                      }}
+                      className="form-select"
+                    >
+                      {periodOptions.yearOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-12 col-md-6">
+                    <label className="form-label small text-uppercase text-muted fw-bold">Filter Bulan</label>
+                    <select
+                      value={filterMonth}
+                      onChange={(e) => setFilterMonth(e.target.value)}
+                      className="form-select"
+                      disabled={filterYear === ALL_YEAR_VALUE}
+                    >
+                      {periodOptions.monthOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    {filterYear === ALL_YEAR_VALUE && (
+                      <div className="form-text">Pilih tahun dulu, lalu bulan akan muncul di sini.</div>
+                    )}
                   </div>
                   <div className="col-12">
                     <label className="form-label small text-uppercase text-muted fw-bold">Pencarian Cepat</label>
@@ -1515,11 +1598,18 @@ const App: React.FC = () => {
 
                     {/* Filter chips */}
                     <div className="d-flex flex-wrap gap-2 mt-3">
-                      {filterPeriode !== ALL_PERIODE_VALUE && (
+                      {filterYear !== ALL_YEAR_VALUE && (
                         <span className="filter-chip" title="Filter periode aktif">
                           <i className="bi bi-calendar3" aria-hidden="true" />
-                          {formatYearMonthKeyToLabel(filterPeriode)}
-                          <button type="button" aria-label="Hapus filter periode" onClick={() => setFilterPeriode(ALL_PERIODE_VALUE)}>
+                          {activePeriodeLabel}
+                          <button
+                            type="button"
+                            aria-label="Hapus filter periode"
+                            onClick={() => {
+                              setFilterYear(ALL_YEAR_VALUE);
+                              setFilterMonth(ALL_MONTH_VALUE);
+                            }}
+                          >
                             <i className="bi bi-x-circle" aria-hidden="true" />
                           </button>
                         </span>
@@ -1533,8 +1623,16 @@ const App: React.FC = () => {
                           </button>
                         </span>
                       )}
-                      {(filterPeriode !== ALL_PERIODE_VALUE || searchQuery.trim() !== '') && (
-                        <button type="button" className="btn btn-sm btn-outline-secondary micro-hover" onClick={() => { setFilterPeriode(ALL_PERIODE_VALUE); setSearchQuery(''); }}>
+                      {(filterYear !== ALL_YEAR_VALUE || searchQuery.trim() !== '') && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary micro-hover"
+                          onClick={() => {
+                            setFilterYear(ALL_YEAR_VALUE);
+                            setFilterMonth(ALL_MONTH_VALUE);
+                            setSearchQuery('');
+                          }}
+                        >
                           Clear All
                         </button>
                       )}
@@ -1557,7 +1655,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
                   <span className="badge text-light">
-                    {filterPeriode === ALL_PERIODE_VALUE ? ALL_PERIODE_LABEL : formatYearMonthKeyToLabel(filterPeriode)}
+                    {activePeriodeLabel}
                   </span>
                   {searchQuery && <span className="small opacity-75 fst-italic text-truncate">Filtered by "{searchQuery}"</span>}
                 </div>
