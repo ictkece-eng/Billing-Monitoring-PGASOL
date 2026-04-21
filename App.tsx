@@ -2024,7 +2024,7 @@ const App: React.FC = () => {
                             {formatCurrency(value)}
                           </p>
                           <div className="small text-muted mb-3" style={{ minHeight: 32, lineHeight: 1.35 }}>
-                            {isInactive ? 'Belum ada nilai pada filter aktif' : 'Klik untuk melihat detail data status2 ini'}
+                            {isInactive ? 'Belum ada nilai pada filter aktif' : ''}
                           </div>
 
                           <div className="d-flex align-items-center justify-content-between gap-2">
