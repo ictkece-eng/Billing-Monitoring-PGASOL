@@ -1396,10 +1396,71 @@ const App: React.FC = () => {
   return (
     <div>
       {/* Navigasi utama */}
-      <nav style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <button onClick={() => { setActivePage('home'); setActiveCustomPage(null); }}>Dashboard</button>
-        <button onClick={() => { setActivePage('tables'); setActiveCustomPage(null); }}>Tabel</button>
-        <button onClick={() => setActiveCustomPage('notaPembatalan')}>Nota Pembatalan</button>
+      <nav
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          marginBottom: 24,
+          padding: '14px 18px',
+          borderRadius: 16,
+          background: 'linear-gradient(135deg, rgba(13,110,253,0.08), rgba(99,102,241,0.06))',
+          border: '1px solid rgba(13,110,253,0.12)',
+          boxShadow: '0 10px 28px rgba(15, 23, 42, 0.05)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 220 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: '#64748b' }}>
+            Menu Cepat
+          </div>
+          <div style={{ fontSize: 14, color: '#334155', marginTop: 4 }}>
+            Akses cepat ke aplikasi eksternal untuk proses nota pembatalan pajak.
+          </div>
+        </div>
+        <a
+          href="https://nota-pembatalan-pajak.vercel.app/"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '12px 16px',
+            minWidth: 260,
+            borderRadius: 14,
+            textDecoration: 'none',
+            background: 'linear-gradient(135deg, #0d6efd, #4f46e5)',
+            color: '#fff',
+            fontWeight: 700,
+            boxShadow: '0 10px 24px rgba(79, 70, 229, 0.24)',
+          }}
+          aria-label="Buka menu Nota Pembatalan Pajak"
+          title="Buka Nota Pembatalan Pajak"
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.16)',
+              }}
+            >
+              <i className="bi bi-receipt-cutoff" aria-hidden="true" />
+            </span>
+            <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+              <span>Nota Pembatalan Pajak</span>
+              <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.9 }}>Buka aplikasi eksternal</span>
+            </span>
+          </span>
+          <i className="bi bi-box-arrow-up-right" aria-hidden="true" />
+        </a>
       </nav>
       {/* Konten utama */}
       {activeCustomPage === 'notaPembatalan' ? (
