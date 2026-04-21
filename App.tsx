@@ -252,7 +252,7 @@ const App: React.FC = () => {
     } catch {
       // ignore
     }
-    return 'unknown';
+    return 'viewer';
   });
 
   const setRolePersisted = (next: AppRole) => {
@@ -269,7 +269,7 @@ const App: React.FC = () => {
   const isAuthenticated = role !== 'unknown';
 
   const logout = () => {
-    // Reset to login state (does not delete data; only hides UI until PIN entered again)
+    // Reset to viewer state (does not delete data; admin tools remain locked until PIN entered again)
     try {
       setUploadHistoryOpen(false);
       setIsInputOpen(false);
@@ -277,7 +277,7 @@ const App: React.FC = () => {
       // ignore
     }
     setToolsUnlockedPersisted(false);
-    setRolePersisted('unknown');
+    setRolePersisted('viewer');
   };
 
   const breadcrumb = useMemo(() => {
@@ -439,16 +439,8 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Startup behavior: show PIN popup immediately on first open (role unknown).
-  // - Admin enters PIN to unlock
-  // - Viewer enters PIN to continue in viewer mode
-  useEffect(() => {
-    if (toolsUnlocked) return;
-    if (role !== 'unknown') return;
-    if (pinModalOpen) return;
-    openPinModal('startup');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, toolsUnlocked]);
+  // Startup behavior: app opens in viewer mode by default.
+  // Admin PIN is only requested when the user explicitly chooses to unlock admin tools.
 
   // Keyboard shortcut:
   // - Ctrl+Shift+U => unlock (ask PIN)
