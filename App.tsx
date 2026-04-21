@@ -1615,6 +1615,18 @@ const App: React.FC = () => {
                     </div>
                   )}
 
+                  {!toolsUnlocked && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary micro-hover"
+                      onClick={() => requestToolsUnlock('manual')}
+                      title="Masuk sebagai admin"
+                    >
+                      <i className="bi bi-shield-lock me-2" aria-hidden="true" />
+                      Masuk Admin
+                    </button>
+                  )}
+
                   {/* User profile */}
                   <div className="dropdown">
                     <button
@@ -1641,6 +1653,14 @@ const App: React.FC = () => {
                           {theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
                         </button>
                       </li>
+                      {!toolsUnlocked && (
+                        <li>
+                          <button className="dropdown-item text-primary" onClick={() => requestToolsUnlock('manual')}>
+                            <i className="bi bi-shield-lock me-2" aria-hidden="true" />
+                            Masuk Admin
+                          </button>
+                        </li>
+                      )}
                       {toolsUnlocked && (
                         <>
                           <li><hr className="dropdown-divider" /></li>
