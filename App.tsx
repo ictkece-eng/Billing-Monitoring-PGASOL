@@ -1979,6 +1979,7 @@ const App: React.FC = () => {
                   {sortedStatus2Cards.map(({ key, label }) => {
                     const theme = getStatusTheme(label);
                     const value = status2Stats[key]?.sum || 0;
+                    const rowCount = status2Stats[key]?.count || 0;
                     const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
                     const isInactive = value <= 0;
                     
@@ -2000,32 +2001,44 @@ const App: React.FC = () => {
                             setStatus2ModalOpen(true);
                           }
                         }}
-                        className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${isInactive ? 'opacity-75' : ''}`}
+                        className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 h-100 d-flex flex-column ${isInactive ? 'opacity-75' : ''}`}
                         title="Klik untuk melihat detail data"
                       >
                         <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
-                        
-                        <p className={`text-[9px] font-extrabold uppercase tracking-tight mb-2 truncate ${theme.text}`} title={label}>
-                          {label}
-                        </p>
-                        <p className="text-base font-black text-slate-900 leading-none safe-number" title={formatCurrency(value)}>
-                          {formatCurrency(value)}
-                        </p>
-                        
-                        <div className="flex items-center justify-between mt-3 gap-2">
-                          <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
-                            {percentage.toFixed(1)}% of total
+
+                        <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
+                          <p
+                            className={`text-[9px] font-extrabold uppercase tracking-tight mb-0 ${theme.text}`}
+                            title={label}
+                            style={{ lineHeight: 1.35, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                          >
+                            {label}
+                          </p>
+                          <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} flex-shrink-0`}>
+                            {rowCount} baris
                           </span>
-                          <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5 flex-shrink-0">
-                            <div 
-                              className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
-                              style={{ width: `${percentage}%` }}
-                            ></div>
+                        </div>
+
+                        <div className="mt-auto">
+                          <p className="text-base font-black text-slate-900 leading-none safe-number mb-2" title={formatCurrency(value)}>
+                            {formatCurrency(value)}
+                          </p>
+                          <div className="small text-muted mb-3" style={{ minHeight: 32, lineHeight: 1.35 }}>
+                            {isInactive ? 'Belum ada nilai pada filter aktif' : 'Klik untuk melihat detail data status2 ini'}
+                          </div>
+
+                          <div className="d-flex align-items-center justify-content-between gap-2">
+                            <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
+                              {percentage.toFixed(1)}% of total
+                            </span>
+                            <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5 flex-shrink-0">
+                              <div 
+                                className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
                           </div>
                         </div>
-                        {isInactive && (
-                          <div className="small text-muted mt-2">Belum ada nilai pada filter aktif</div>
-                        )}
                       </div>
                     );
                   })}
