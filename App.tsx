@@ -2035,38 +2035,39 @@ const App: React.FC = () => {
         {pinModalOpen && (
           <div
             className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3"
-            style={{ background: 'rgba(15, 23, 42, 0.42)', zIndex: 1080 }}
+            style={{ background: 'rgba(15, 23, 42, 0.34)', backdropFilter: 'blur(6px)', zIndex: 1080 }}
           >
             <div
               className="card border-0 shadow-lg overflow-hidden"
-              style={{ width: '100%', maxWidth: 430, borderRadius: 22 }}
+              style={{ width: '100%', maxWidth: 380, borderRadius: 20, boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)' }}
               role="dialog"
               aria-modal="true"
               aria-labelledby="admin-pin-title"
             >
               <div
-                className="px-4 px-md-5 pt-4 pt-md-5 pb-3"
+                className="px-4 pt-4 pb-3"
                 style={{ background: 'linear-gradient(135deg, rgba(13,110,253,0.10), rgba(99,102,241,0.08))' }}
               >
                 <div className="d-flex align-items-start justify-content-between gap-3">
                   <div className="d-flex align-items-start gap-3">
                     <div
-                      className="d-inline-flex align-items-center justify-content-center rounded-4 text-primary"
-                      style={{ width: 52, height: 52, background: 'rgba(13,110,253,0.12)' }}
+                      className="d-inline-flex align-items-center justify-content-center rounded-4 text-primary flex-shrink-0"
+                      style={{ width: 44, height: 44, background: 'rgba(13,110,253,0.12)' }}
                     >
-                      <i className="bi bi-shield-lock-fill fs-4" aria-hidden="true" />
+                      <i className="bi bi-shield-lock-fill fs-5" aria-hidden="true" />
                     </div>
                     <div>
-                      <h2 id="admin-pin-title" className="h5 fw-black mb-1">Admin Access</h2>
-                      <p className="text-muted mb-0 small">
-                        Masukkan PIN admin untuk membuka menu tools, upload, dan history.
+                      <h2 id="admin-pin-title" className="h6 fw-black mb-1">Akses Admin</h2>
+                      <p className="text-muted mb-0 small" style={{ lineHeight: 1.45 }}>
+                        Masukkan PIN untuk membuka tools admin.
                       </p>
                     </div>
                   </div>
                   {pinModalSource !== 'startup' && (
                     <button
                       type="button"
-                      className="btn btn-sm btn-light border"
+                      className="btn btn-sm btn-light border rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                      style={{ width: 32, height: 32 }}
                       onClick={dismissPinModal}
                       aria-label="Tutup popup PIN"
                     >
@@ -2076,13 +2077,13 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="card-body px-4 px-md-5 py-4">
+              <div className="card-body px-4 py-4">
                 <div className="mb-3">
                   <label htmlFor="admin-pin-input" className="form-label small text-uppercase text-muted fw-bold">
                     PIN Admin
                   </label>
-                  <div className="input-group input-group-lg">
-                    <span className="input-group-text bg-white">
+                  <div className="input-group">
+                    <span className="input-group-text bg-white px-3">
                       <i className="bi bi-key-fill text-primary" aria-hidden="true" />
                     </span>
                     <input
@@ -2100,7 +2101,7 @@ const App: React.FC = () => {
                     />
                     <button
                       type="button"
-                      className="btn btn-outline-secondary"
+                      className="btn btn-outline-secondary px-3"
                       onClick={() => setPinVisible(prev => !prev)}
                       aria-label={pinVisible ? 'Sembunyikan PIN' : 'Lihat PIN'}
                     >
@@ -2108,9 +2109,12 @@ const App: React.FC = () => {
                     </button>
                   </div>
                   {pinError && <div className="text-danger small mt-2">{pinError}</div>}
+                  {!pinError && (
+                    <div className="small text-muted mt-2">Gunakan PIN admin untuk akses fitur upload, history, dan input data.</div>
+                  )}
                 </div>
 
-                <div className="d-flex flex-column flex-sm-row gap-2 justify-content-end mt-4">
+                <div className="d-flex flex-column flex-sm-row gap-2 justify-content-end mt-3">
                   {pinModalSource !== 'startup' && (
                     <button type="button" className="btn btn-light border" onClick={dismissPinModal}>
                       Batal
@@ -2118,7 +2122,7 @@ const App: React.FC = () => {
                   )}
                   <button type="button" className="btn btn-primary" onClick={submitPinModal}>
                     <i className="bi bi-unlock-fill me-2" aria-hidden="true" />
-                    Buka Tools Admin
+                    Masuk Admin
                   </button>
                 </div>
               </div>
