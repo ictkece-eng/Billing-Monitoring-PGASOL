@@ -1618,12 +1618,21 @@ const App: React.FC = () => {
                   {!toolsUnlocked && (
                     <button
                       type="button"
-                      className="btn btn-outline-primary micro-hover"
+                      className="btn btn-outline-primary micro-hover d-inline-flex align-items-center gap-3 px-3 py-2 text-start"
                       onClick={() => requestToolsUnlock('manual')}
                       title="Masuk sebagai admin"
+                      style={{ borderRadius: 14 }}
                     >
-                      <i className="bi bi-shield-lock me-2" aria-hidden="true" />
-                      Masuk Admin
+                      <span
+                        className="d-inline-flex align-items-center justify-content-center rounded-3"
+                        style={{ width: 36, height: 36, background: 'rgba(13,110,253,0.10)' }}
+                      >
+                        <i className="bi bi-shield-lock" aria-hidden="true" />
+                      </span>
+                      <span className="d-flex flex-column lh-sm">
+                        <span className="fw-bold">Masuk Admin</span>
+                        <span className="small text-muted">Buka akses tools admin</span>
+                      </span>
                     </button>
                   )}
 
@@ -1644,6 +1653,7 @@ const App: React.FC = () => {
                         <div className="dropdown-item-text">
                           <div className="fw-semibold">{role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'User'}</div>
                           <div className="small text-muted">{toolsUnlocked ? 'Tools: Unlocked' : 'Tools: Locked'}</div>
+                          {!toolsUnlocked && <div className="small text-primary mt-1">Klik “Masuk Admin” untuk membuka tools.</div>}
                         </div>
                       </li>
                       <li><hr className="dropdown-divider" /></li>
