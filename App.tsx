@@ -310,6 +310,25 @@ const App: React.FC = () => {
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinVisible, setPinVisible] = useState(false);
   const pinInputRef = useRef<HTMLInputElement | null>(null);
+  const pinPreviewValue = pinValue.replace(/\s+/g, '');
+  const pinPreviewSlots = useMemo(() => Array.from({ length: 6 }, (_, index) => pinPreviewValue[index] ?? ''), [pinPreviewValue]);
+  const pinPreviewOverflow = Math.max(pinPreviewValue.length - pinPreviewSlots.length, 0);
+  const pinModalSourceLabel = useMemo(() => {
+    switch (pinModalSource) {
+      case 'shortcut':
+        return 'Shortcut';
+      case 'url':
+        return 'URL Access';
+      case 'hash':
+        return 'Hash Access';
+      case 'gesture':
+        return 'Hidden Gesture';
+      case 'startup':
+        return 'Startup';
+      default:
+        return 'Manual Access';
+    }
+  }, [pinModalSource]);
 
   const setToolsUnlockedPersisted = (next: boolean) => {
     setToolsUnlocked(next);
@@ -2034,11 +2053,11 @@ const App: React.FC = () => {
 
         {pinModalOpen && (
           <div
-            className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3"
+            className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3 animate-in fade-in duration-200"
             style={{ background: 'rgba(15, 23, 42, 0.34)', backdropFilter: 'blur(6px)', zIndex: 1080 }}
           >
             <div
-              className="card border-0 shadow-lg overflow-hidden"
+              className="card border-0 shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-300"
               style={{ width: '100%', maxWidth: 380, borderRadius: 20, boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)' }}
               role="dialog"
               aria-modal="true"
@@ -2061,6 +2080,10 @@ const App: React.FC = () => {
                       <p className="text-muted mb-0 small" style={{ lineHeight: 1.45 }}>
                         Masukkan PIN untuk membuka tools admin.
                       </p>
+                      <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+                        <span className="badge rounded-pill text-primary border border-primary-subtle bg-white-subtle">Secure Access</span>
+                        <span className="badge rounded-pill text-secondary bg-white border">{pinModalSourceLabel}</span>
+                      </div>
                     </div>
                   </div>
                   {pinModalSource !== 'startup' && (
@@ -2078,6 +2101,34 @@ const App: React.FC = () => {
               </div>
 
               <div className="card-body px-4 py-4">
+                <div className="rounded-4 border bg-light-subtle px-3 py-3 mb-3">
+                  <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <div className="small fw-semibold text-dark">Preview PIN</div>
+                    <div className="small text-muted">{pinVisible ? 'Terlihat' : 'Tersembunyi'}</div>
+                  </div>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    {pinPreviewSlots.map((char, index) => {
+                      const filled = Boolean(char);
+                      return (
+                        <div
+                          key={`pin-slot-${index}`}
+                          className={`d-inline-flex align-items-center justify-content-center rounded-3 border fw-bold ${filled ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-muted border-secondary-subtle'}`}
+                          style={{ width: 40, height: 44, fontSize: 18, letterSpacing: '.02em' }}
+                          aria-hidden="true"
+                        >
+                          {filled ? (pinVisible ? char : '•') : ''}
+                        </div>
+                      );
+                    })}
+                    {pinPreviewOverflow > 0 && (
+                      <span className="badge rounded-pill text-bg-light border text-muted">+{pinPreviewOverflow}</span>
+                    )}
+                  </div>
+                  <div className="small text-muted mt-2">
+                    Tampilan slot hanya preview visual. Fungsi PIN tetap memakai input yang sama seperti sebelumnya.
+                  </div>
+                </div>
+
                 <div className="mb-3">
                   <label htmlFor="admin-pin-input" className="form-label small text-uppercase text-muted fw-bold">
                     PIN Admin
@@ -2098,6 +2149,7 @@ const App: React.FC = () => {
                         if (pinError) setPinError(null);
                       }}
                       autoComplete="current-password"
+                      spellCheck={false}
                     />
                     <button
                       type="button"
@@ -2110,7 +2162,11 @@ const App: React.FC = () => {
                   </div>
                   {pinError && <div className="text-danger small mt-2">{pinError}</div>}
                   {!pinError && (
-                    <div className="small text-muted mt-2">Gunakan PIN admin untuk akses fitur upload, history, dan input data.</div>
+                    <div className="small text-muted mt-2 d-flex flex-wrap align-items-center gap-2">
+                      <span>Gunakan PIN admin untuk akses fitur upload, history, dan input data.</span>
+                      <span className="text-primary fw-semibold">Enter</span>
+                      <span>untuk lanjut</span>
+                    </div>
                   )}
                 </div>
 
