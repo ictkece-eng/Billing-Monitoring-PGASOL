@@ -69,7 +69,7 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
             <div className="modal-body">
               <div className="table-responsive border rounded-3">
                 <div style={{ maxHeight: '68vh', overflow: 'auto' }}>
-                  <table className="table table-sm table-hover align-middle mb-0" style={{ tableLayout: 'fixed', minWidth: 1100 }}>
+                  <table className="table table-sm table-hover align-middle mb-0" style={{ tableLayout: 'fixed', minWidth: 1140 }}>
                     <colgroup>
                       <col style={{ width: 56 }} />
                       <col style={{ width: 110 }} />
@@ -77,7 +77,7 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                       <col style={{ width: 180 }} />
                       <col style={{ width: 120 }} />
                       <col style={{ width: 150 }} />
-                      <col style={{ width: 160 }} />
+                      <col style={{ width: 190 }} />
                       <col style={{ width: 'auto' }} />
                     </colgroup>
                     <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
@@ -88,7 +88,7 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                         <th>Nama User</th>
                         <th>No RO</th>
                         <th>No BAST</th>
-                        <th className="text-end">Nilai Tagihan</th>
+                        <th className="text-end pe-3">Nilai Tagihan</th>
                         <th>Keterangan</th>
                       </tr>
                     </thead>
@@ -108,8 +108,13 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                             <td className="fw-semibold text-break" title={r.namaUser}>{r.namaUser || '-'}</td>
                             <td className="text-nowrap text-truncate" style={{ maxWidth: 120 }} title={r.noRO || '-'}>{r.noRO || '-'}</td>
                             <td className="text-nowrap text-truncate" style={{ maxWidth: 150 }} title={r.noBAST || '-'}>{r.noBAST || '-'}</td>
-                            <td className="text-end fw-bold font-monospace safe-number" title={formatCurrency(r.nilaiTagihan)}>
-                              {formatCurrency(r.nilaiTagihan)}
+                            <td className="text-end pe-3" title={formatCurrency(r.nilaiTagihan)}>
+                              <span
+                                className="d-inline-block fw-bold font-monospace safe-number tabular-nums text-nowrap"
+                                style={{ minWidth: 160, letterSpacing: '-0.01em' }}
+                              >
+                                {formatCurrency(r.nilaiTagihan)}
+                              </span>
                             </td>
                             <td className="text-break" style={{ minWidth: 260, lineHeight: 1.4 }} title={r.keterangan || '-'}>{r.keterangan || '-'}</td>
                           </tr>
