@@ -52,12 +52,12 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
               <div className="d-flex flex-column">
                 <h5 className="modal-title text-truncate" title={title}>{title}</h5>
                 <div className="d-flex flex-wrap gap-2 mt-2">
-                  <span className="badge text-bg-light border">
+                  <span className="badge border text-primary-emphasis bg-primary-subtle border-primary-subtle px-3 py-2">
                     Total: <span className="safe-number-inline tabular-nums">{formatCurrency(total)}</span>
                   </span>
-                  <span className="badge text-bg-light border">Baris: {rows.length}</span>
+                  <span className="badge text-bg-light border px-3 py-2">Baris: {rows.length}</span>
                   {hiddenCount > 0 && (
-                    <span className="badge text-bg-warning-subtle border border-warning-subtle text-warning">
+                    <span className="badge text-bg-warning-subtle border border-warning-subtle text-warning px-3 py-2">
                       Ditampilkan: {displayRows.length} (sisa {hiddenCount})
                     </span>
                   )}
@@ -69,7 +69,7 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
             <div className="modal-body">
               <div className="table-responsive border rounded-3">
                 <div style={{ maxHeight: '68vh', overflow: 'auto' }}>
-                  <table className="table table-sm table-hover align-middle mb-0" style={{ tableLayout: 'fixed', minWidth: 1140 }}>
+                  <table className="table table-sm table-hover table-striped align-middle mb-0" style={{ tableLayout: 'fixed', minWidth: 1140 }}>
                     <colgroup>
                       <col style={{ width: 56 }} />
                       <col style={{ width: 110 }} />
@@ -88,7 +88,7 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                         <th>Nama User</th>
                         <th>No RO</th>
                         <th>No BAST</th>
-                        <th className="text-end pe-3">Nilai Tagihan</th>
+                        <th className="text-end pe-3 text-primary-emphasis">Nilai Tagihan</th>
                         <th>Keterangan</th>
                       </tr>
                     </thead>
@@ -108,9 +108,9 @@ const Status2DetailModal: React.FC<Status2DetailModalProps> = ({
                             <td className="fw-semibold text-break" title={r.namaUser}>{r.namaUser || '-'}</td>
                             <td className="text-nowrap text-truncate" style={{ maxWidth: 120 }} title={r.noRO || '-'}>{r.noRO || '-'}</td>
                             <td className="text-nowrap text-truncate" style={{ maxWidth: 150 }} title={r.noBAST || '-'}>{r.noBAST || '-'}</td>
-                            <td className="text-end pe-3" title={formatCurrency(r.nilaiTagihan)}>
+                            <td className="text-end pe-3 align-middle" title={formatCurrency(r.nilaiTagihan)}>
                               <span
-                                className="d-inline-block fw-bold font-monospace safe-number tabular-nums text-nowrap"
+                                className="d-inline-block fw-bold font-monospace safe-number tabular-nums text-nowrap rounded-2 px-2 py-1 bg-primary-subtle text-primary-emphasis"
                                 style={{ minWidth: 160, letterSpacing: '-0.01em' }}
                               >
                                 {formatCurrency(r.nilaiTagihan)}
