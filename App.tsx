@@ -896,6 +896,7 @@ const App: React.FC = () => {
 
   const normalizeStatus2 = (s: string | undefined | null) => (s || '').trim();
   const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
+  const OTHER_STATUS2_KEY = '__other_status2__';
 
   const preferredStatus2Order = useMemo(
     () => [
@@ -1028,6 +1029,12 @@ const App: React.FC = () => {
     return canonicalPrefix || s;
   };
 
+  const fixedStatus2KeySet = useMemo(() => {
+    return new Set(
+      preferredStatus2Order.map(status => normalizeStatus2Key(canonicalizeStatus2(status)) || 'manual')
+    );
+  }, [preferredStatus2Order]);
+
   // Build status2 list from the full source column so all status buckets remain visible,
   // while the numbers inside each card still follow the active filter.
   const status2CardList = useMemo(() => {
@@ -1088,6 +1095,32 @@ const App: React.FC = () => {
       .map(({ key, label }) => ({ key, label }));
   }, [preferredStatus2OrderMap, status2CardList]);
 
+  const mainStatus2Cards = useMemo(() => {
+    return sortedStatus2Cards.filter(({ key }) => fixedStatus2KeySet.has(key));
+  }, [fixedStatus2KeySet, sortedStatus2Cards]);
+
+  const otherStatus2Aggregate = useMemo(() => {
+    const rows = filteredData.filter(item => {
+      const key = normalizeStatus2Key(canonicalizeStatus2(item.status2)) || 'manual';
+      return !fixedStatus2KeySet.has(key);
+    });
+
+    const labels = Array.from(
+      new Set(
+        rows
+          .map(item => canonicalizeStatus2(item.status2))
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+
+    return {
+      sum: rows.reduce((acc, item) => acc + safeAmount(item.nilaiTagihan), 0),
+      count: rows.length,
+      distinctCount: labels.length,
+      labels,
+    };
+  }, [filteredData, fixedStatus2KeySet]);
+
   // Integrity check: sum of all status2 cards should equal the Grand Total Tagihan (for current filteredData).
   // If there is a mismatch, it indicates data issues (e.g., NaN/Infinity, unexpected parsing) rather than UI math.
   const status2CardsTotal = useMemo(() => {
@@ -1121,11 +1154,22 @@ const App: React.FC = () => {
 
   const status2ModalRows = useMemo(() => {
     if (!status2ModalOpen || !status2ModalKey) return [] as BudgetRecord[];
+
+    if (status2ModalKey === OTHER_STATUS2_KEY) {
+      return filteredData
+        .filter(r => {
+          const key = normalizeStatus2Key(canonicalizeStatus2(r.status2)) || 'manual';
+          return !fixedStatus2KeySet.has(key);
+        })
+        .slice()
+        .sort((a, b) => safeAmount(b.nilaiTagihan) - safeAmount(a.nilaiTagihan));
+    }
+
     return filteredData
       .filter(r => (normalizeStatus2Key(canonicalizeStatus2(r.status2)) || 'manual') === status2ModalKey)
       .slice()
       .sort((a, b) => safeAmount(b.nilaiTagihan) - safeAmount(a.nilaiTagihan));
-  }, [status2ModalOpen, status2ModalKey, filteredData]);
+  }, [OTHER_STATUS2_KEY, fixedStatus2KeySet, filteredData, status2ModalOpen, status2ModalKey]);
 
   const status2ModalTotal = useMemo(() => {
     if (!status2ModalOpen || !status2ModalKey) return 0;
@@ -2113,7 +2157,7 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {sortedStatus2Cards.map(({ key, label }) => {
+                  {mainStatus2Cards.map(({ key, label }) => {
                     const theme = getStatusTheme(label);
                     const flowMeta = getStatus2FlowMeta(label);
                     const value = status2Stats[key]?.sum || 0;
@@ -2206,6 +2250,92 @@ const App: React.FC = () => {
                       </div>
                     );
                   })}
+
+                  {(() => {
+                    const otherValue = otherStatus2Aggregate.sum;
+                    const otherCount = otherStatus2Aggregate.count;
+                    const otherPercentage = totalValue > 0 ? (otherValue / totalValue) * 100 : 0;
+                    const otherInactive = otherValue <= 0;
+                    const otherPreview = otherStatus2Aggregate.labels.slice(0, 6).join(' • ');
+
+                    return (
+                      <div className="col-span-2 md:col-span-3 lg:col-span-6">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setStatus2ModalKey(OTHER_STATUS2_KEY);
+                            setStatus2ModalLabel('Status Lainnya');
+                            setStatus2ModalOpen(true);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setStatus2ModalKey(OTHER_STATUS2_KEY);
+                              setStatus2ModalLabel('Status Lainnya');
+                              setStatus2ModalOpen(true);
+                            }
+                          }}
+                          className={`border rounded-2xl p-4 p-md-5 shadow-sm hover:shadow-md transition-all overflow-hidden position-relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 h-100 ${otherInactive ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-300'}`}
+                          title="Klik untuk melihat detail semua status di luar 12 tahap utama"
+                        >
+                          <div className={`position-absolute top-0 end-0 mt-3 me-3 rounded-circle ${otherInactive ? 'bg-slate-200' : 'bg-slate-700'} opacity-10`} style={{ width: 56, height: 56 }} />
+
+                          <div className="d-flex flex-column flex-lg-row align-items-lg-start justify-content-between gap-3">
+                            <div className="d-flex align-items-start gap-3 min-w-0 flex-grow-1">
+                              <span
+                                className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${otherInactive ? 'text-slate-500' : 'text-slate-700'}`}
+                                style={{ width: 40, height: 40, background: 'rgba(248,250,252,0.95)' }}
+                                title="Gabungan status di luar 12 tahap utama"
+                              >
+                                <i className="bi bi-collection" aria-hidden="true" />
+                              </span>
+
+                              <div className="min-w-0 flex-grow-1">
+                                <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                  <span className={`badge rounded-pill ${otherInactive ? 'text-bg-light border text-secondary' : 'text-bg-dark'}`}>
+                                    Status Lainnya
+                                  </span>
+                                  <span className={`badge rounded-pill ${otherInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border text-slate-700'}`}>
+                                    {otherStatus2Aggregate.distinctCount} status
+                                  </span>
+                                </div>
+
+                                <h3 className={`h6 fw-black mb-2 ${otherInactive ? 'text-slate-500' : 'text-slate-900'}`}>
+                                  Gabungan semua status di luar 12 tahap utama
+                                </h3>
+
+                                <p className={`small mb-0 ${otherInactive ? 'text-slate-400' : 'text-muted'}`} style={{ lineHeight: 1.5 }}>
+                                  {otherStatus2Aggregate.distinctCount > 0
+                                    ? otherPreview + (otherStatus2Aggregate.labels.length > 6 ? ` • +${otherStatus2Aggregate.labels.length - 6} status lain` : '')
+                                    : 'Tidak ada status lain pada filter aktif.'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="d-flex flex-column align-items-lg-end gap-2 flex-shrink-0">
+                              <span className={`badge rounded-pill ${otherInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border text-slate-700'}`}>
+                                {otherCount} baris
+                              </span>
+                              <div className={`text-end ${otherInactive ? 'text-slate-500' : 'text-slate-900'}`}>
+                                <div className="text-lg fw-black safe-number" title={formatCurrency(otherValue)}>{formatCurrency(otherValue)}</div>
+                                <div className={`small ${otherInactive ? 'text-slate-400' : 'text-muted'}`}>
+                                  {otherInactive ? 'Belum ada nilai pada filter aktif' : `${otherPercentage.toFixed(1)}% of total`}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className={`mt-4 h-2 rounded-full overflow-hidden border border-black/5 ${otherInactive ? 'bg-slate-200' : 'bg-slate-100'}`}>
+                            <div
+                              className={`h-full rounded-full transition-all duration-1000 ${otherInactive ? 'bg-slate-300' : 'bg-slate-700'}`}
+                              style={{ width: `${otherPercentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
