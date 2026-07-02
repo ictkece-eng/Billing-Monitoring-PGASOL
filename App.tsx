@@ -1034,7 +1034,9 @@ const App: React.FC = () => {
     const map = new Map<string, { key: string; label: string; order: number }>();
     let order = 0;
 
-    for (const col of STATUS_COLS) {
+    // Always seed the requested 12-stage flow first so cards remain visible
+    // even when the filtered value is zero.
+    for (const col of preferredStatus2Order) {
       const raw = canonicalizeStatus2(col);
       const key = normalizeStatus2Key(raw) || 'manual';
       if (!map.has(key)) {
@@ -1052,7 +1054,7 @@ const App: React.FC = () => {
     }
 
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
-  }, [data]);
+  }, [data, preferredStatus2Order]);
 
   // Stats per status2 (dynamic): sum + count
   const status2Stats = useMemo<Record<string, { sum: number; count: number }>>(() => {
@@ -2118,6 +2120,10 @@ const App: React.FC = () => {
                     const rowCount = status2Stats[key]?.count || 0;
                     const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
                     const isInactive = value <= 0;
+                    const cardToneClasses = isInactive ? 'bg-slate-50 border-slate-200' : `${theme.bg} ${theme.border}`;
+                    const accentBarClass = isInactive ? 'bg-slate-300' : theme.bar;
+                    const accentTextClass = isInactive ? 'text-slate-500' : theme.text;
+                    const pillClassName = isInactive ? 'text-bg-light border text-secondary' : `text-bg-white border ${theme.text}`;
                     
                     return (
                       <div
@@ -2137,16 +2143,16 @@ const App: React.FC = () => {
                             setStatus2ModalOpen(true);
                           }
                         }}
-                        className={`${theme.bg} ${theme.border} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 h-100 d-flex flex-column ${isInactive ? 'opacity-75' : ''}`}
+                        className={`${cardToneClasses} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 h-100 d-flex flex-column`}
                         title="Klik untuk melihat detail data"
                       >
-                        <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
+                        <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${accentBarClass}`}></div>
 
                         <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
                           <div className="d-flex align-items-start gap-2 min-w-0 flex-grow-1">
                             <span
-                              className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${theme.text}`}
-                              style={{ width: 28, height: 28, background: 'rgba(255,255,255,0.55)' }}
+                              className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${accentTextClass}`}
+                              style={{ width: 28, height: 28, background: isInactive ? 'rgba(248,250,252,0.95)' : 'rgba(255,255,255,0.55)' }}
                               title={flowMeta.step ? `Tahap ${flowMeta.step}` : 'Status'}
                             >
                               <i className={flowMeta.icon} aria-hidden="true" />
@@ -2154,17 +2160,17 @@ const App: React.FC = () => {
                             <div className="min-w-0 flex-grow-1">
                               <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
                                 {flowMeta.step ? (
-                                  <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} ${theme.text}`}>
+                                  <span className={`badge rounded-pill ${pillClassName}`}>
                                     Tahap {flowMeta.step}
                                   </span>
                                 ) : (
-                                  <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} ${theme.text}`}>
+                                  <span className={`badge rounded-pill ${pillClassName}`}>
                                     {flowMeta.shortLabel}
                                   </span>
                                 )}
                               </div>
                               <p
-                                className={`text-[9px] font-extrabold uppercase tracking-tight mb-0 ${theme.text}`}
+                                className={`text-[9px] font-extrabold uppercase tracking-tight mb-0 ${accentTextClass}`}
                                 title={label}
                                 style={{ lineHeight: 1.35, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                               >
@@ -2178,20 +2184,20 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="mt-auto">
-                          <p className="text-base font-black text-slate-900 leading-none safe-number mb-2" title={formatCurrency(value)}>
+                          <p className={`text-base font-black leading-none safe-number mb-2 ${isInactive ? 'text-slate-500' : 'text-slate-900'}`} title={formatCurrency(value)}>
                             {formatCurrency(value)}
                           </p>
-                          <div className="small text-muted mb-3" style={{ minHeight: 32, lineHeight: 1.35 }}>
+                          <div className={`small mb-3 ${isInactive ? 'text-slate-400' : 'text-muted'}`} style={{ minHeight: 32, lineHeight: 1.35 }}>
                             {isInactive ? 'Belum ada nilai pada filter aktif' : ''}
                           </div>
 
                           <div className="d-flex align-items-center justify-content-between gap-2">
-                            <span className={`text-[9px] font-bold ${theme.text} opacity-70 tabular-nums`}>
+                            <span className={`text-[9px] font-bold ${accentTextClass} opacity-70 tabular-nums`}>
                               {percentage.toFixed(1)}% of total
                             </span>
-                            <div className="w-16 bg-white/50 h-1.5 rounded-full overflow-hidden border border-black/5 flex-shrink-0">
+                            <div className={`w-16 h-1.5 rounded-full overflow-hidden border border-black/5 flex-shrink-0 ${isInactive ? 'bg-slate-200' : 'bg-white/50'}`}>
                               <div 
-                                className={`${theme.bar} h-full rounded-full transition-all duration-1000`} 
+                                className={`${accentBarClass} h-full rounded-full transition-all duration-1000`} 
                                 style={{ width: `${percentage}%` }}
                               ></div>
                             </div>
