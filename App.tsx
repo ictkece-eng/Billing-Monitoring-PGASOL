@@ -899,9 +899,10 @@ const App: React.FC = () => {
 
   const preferredStatus2Order = useMemo(
     () => [
-      'RO-REKAP',
-      'VOW-REVIEW VOW',
-      'BY SAP POLLER-APPROVAL VOW',
+      'RO',
+      'REKAP VOW',
+      'REVIEW VOW BY SAP POLLER',
+      'APPROVAL VOW',
       'SUMBIT BAST',
       'REVIEW 1',
       'APPROVAL MANAGER',
@@ -932,15 +933,13 @@ const App: React.FC = () => {
 
   const canonicalStatus2AliasEntries = useMemo(() => {
     const aliases: Array<readonly [string, string]> = [
-      ['RO-REKAP', 'RO-REKAP'],
-      ['RO REKAP', 'RO-REKAP'],
-      ['VOW-REVIEW VOW', 'VOW-REVIEW VOW'],
-      ['VOW REVIEW VOW', 'VOW-REVIEW VOW'],
-      ['REVIEW VOW', 'VOW-REVIEW VOW'],
-      ['BY SAP POLLER-APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
-      ['BY SAP POLLER APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
-      ['SAP POLLER-APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
-      ['SAP POLLER APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
+      ['RO', 'RO'],
+      ['REKAP VOW', 'REKAP VOW'],
+      ['VOW REKAP', 'REKAP VOW'],
+      ['REVIEW VOW BY SAP POLLER', 'REVIEW VOW BY SAP POLLER'],
+      ['REVIEW VOW SAP POLLER', 'REVIEW VOW BY SAP POLLER'],
+      ['VOW BY SAP POLLER', 'REVIEW VOW BY SAP POLLER'],
+      ['APPROVAL VOW', 'APPROVAL VOW'],
       ['SUMBIT BAST', 'SUMBIT BAST'],
       ['SUBMIT BAST', 'SUMBIT BAST'],
       ['REVIEW 1', 'REVIEW 1'],
@@ -960,17 +959,18 @@ const App: React.FC = () => {
 
   const status2FlowMetaMap = useMemo(() => {
     const entries = [
-      ['RO-REKAP', { step: 1, icon: 'bi bi-journal-check', shortLabel: 'Step 1' }],
-      ['VOW-REVIEW VOW', { step: 2, icon: 'bi bi-search', shortLabel: 'Step 2' }],
-      ['BY SAP POLLER-APPROVAL VOW', { step: 3, icon: 'bi bi-diagram-3', shortLabel: 'Step 3' }],
-      ['SUMBIT BAST', { step: 4, icon: 'bi bi-send-check', shortLabel: 'Step 4' }],
-      ['REVIEW 1', { step: 5, icon: 'bi bi-clipboard2-check', shortLabel: 'Step 5' }],
-      ['APPROVAL MANAGER', { step: 6, icon: 'bi bi-person-check', shortLabel: 'Step 6' }],
-      ['REQ SAP', { step: 7, icon: 'bi bi-file-earmark-arrow-up', shortLabel: 'Step 7' }],
-      ['SUBMIT SA BY ASST MANAGER', { step: 8, icon: 'bi bi-person-workspace', shortLabel: 'Step 8' }],
-      ['REQ INV INTERNAL', { step: 9, icon: 'bi bi-receipt', shortLabel: 'Step 9' }],
-      ['VERIFIKASI I VENDOR', { step: 10, icon: 'bi bi-patch-check', shortLabel: 'Step 10' }],
-      ['PAID', { step: 11, icon: 'bi bi-cash-coin', shortLabel: 'Step 11' }],
+      ['RO', { step: 1, icon: 'bi bi-journal-check', shortLabel: 'Step 1' }],
+      ['REKAP VOW', { step: 2, icon: 'bi bi-files', shortLabel: 'Step 2' }],
+      ['REVIEW VOW BY SAP POLLER', { step: 3, icon: 'bi bi-search', shortLabel: 'Step 3' }],
+      ['APPROVAL VOW', { step: 4, icon: 'bi bi-diagram-3', shortLabel: 'Step 4' }],
+      ['SUMBIT BAST', { step: 5, icon: 'bi bi-send-check', shortLabel: 'Step 5' }],
+      ['REVIEW 1', { step: 6, icon: 'bi bi-clipboard2-check', shortLabel: 'Step 6' }],
+      ['APPROVAL MANAGER', { step: 7, icon: 'bi bi-person-check', shortLabel: 'Step 7' }],
+      ['REQ SAP', { step: 8, icon: 'bi bi-file-earmark-arrow-up', shortLabel: 'Step 8' }],
+      ['SUBMIT SA BY ASST MANAGER', { step: 9, icon: 'bi bi-person-workspace', shortLabel: 'Step 9' }],
+      ['REQ INV INTERNAL', { step: 10, icon: 'bi bi-receipt', shortLabel: 'Step 10' }],
+      ['VERIFIKASI I VENDOR', { step: 11, icon: 'bi bi-patch-check', shortLabel: 'Step 11' }],
+      ['PAID', { step: 12, icon: 'bi bi-cash-coin', shortLabel: 'Step 12' }],
     ] as const;
 
     const map = new Map<string, { step: number; icon: string; shortLabel: string }>();
@@ -1281,12 +1281,14 @@ const App: React.FC = () => {
     };
 
     switch (status) {
-      case 'RO-REKAP':
+      case 'RO':
         return { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', bar: 'bg-slate-500', icon: 'text-slate-400' };
-      case 'VOW-REVIEW VOW':
+      case 'REKAP VOW':
         return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', bar: 'bg-cyan-500', icon: 'text-cyan-400' };
-      case 'BY SAP POLLER-APPROVAL VOW':
+      case 'REVIEW VOW BY SAP POLLER':
         return { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', bar: 'bg-sky-500', icon: 'text-sky-400' };
+      case 'APPROVAL VOW':
+        return { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', bar: 'bg-teal-500', icon: 'text-teal-400' };
       case 'SUMBIT BAST':
         return { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', bar: 'bg-indigo-500', icon: 'text-indigo-400' };
       case 'REVIEW 1':
