@@ -1099,6 +1099,10 @@ const App: React.FC = () => {
     return sortedStatus2Cards.filter(({ key }) => fixedStatus2KeySet.has(key));
   }, [fixedStatus2KeySet, sortedStatus2Cards]);
 
+  const otherStatus2Cards = useMemo(() => {
+    return sortedStatus2Cards.filter(({ key }) => !fixedStatus2KeySet.has(key));
+  }, [fixedStatus2KeySet, sortedStatus2Cards]);
+
   const otherStatus2Aggregate = useMemo(() => {
     const rows = filteredData.filter(item => {
       const key = normalizeStatus2Key(canonicalizeStatus2(item.status2)) || 'manual';
@@ -2251,91 +2255,155 @@ const App: React.FC = () => {
                     );
                   })}
 
-                  {(() => {
-                    const otherValue = otherStatus2Aggregate.sum;
-                    const otherCount = otherStatus2Aggregate.count;
-                    const otherPercentage = totalValue > 0 ? (otherValue / totalValue) * 100 : 0;
-                    const otherInactive = otherValue <= 0;
-                    const otherPreview = otherStatus2Aggregate.labels.slice(0, 6).join(' • ');
+                  <div className="col-span-2 md:col-span-3 lg:col-span-6">
+                    <div className={`border rounded-2xl p-4 p-md-5 shadow-sm overflow-hidden position-relative h-100 ${otherStatus2Aggregate.count <= 0 ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-300'}`}>
+                      <div className={`position-absolute top-0 end-0 mt-3 me-3 rounded-circle ${otherStatus2Aggregate.count <= 0 ? 'bg-slate-200' : 'bg-slate-700'} opacity-10`} style={{ width: 56, height: 56 }} />
 
-                    return (
-                      <div className="col-span-2 md:col-span-3 lg:col-span-6">
+                      <div
+                        className={`rounded-2xl border mb-4 position-relative overflow-hidden ${otherStatus2Aggregate.count <= 0 ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-200'}`}
+                        style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}
+                      >
                         <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            setStatus2ModalKey(OTHER_STATUS2_KEY);
-                            setStatus2ModalLabel('Status Lainnya');
-                            setStatus2ModalOpen(true);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setStatus2ModalKey(OTHER_STATUS2_KEY);
-                              setStatus2ModalLabel('Status Lainnya');
-                              setStatus2ModalOpen(true);
-                            }
-                          }}
-                          className={`border rounded-2xl p-4 p-md-5 shadow-sm hover:shadow-md transition-all overflow-hidden position-relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 h-100 ${otherInactive ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-300'}`}
-                          title="Klik untuk melihat detail semua status di luar 12 tahap utama"
-                        >
-                          <div className={`position-absolute top-0 end-0 mt-3 me-3 rounded-circle ${otherInactive ? 'bg-slate-200' : 'bg-slate-700'} opacity-10`} style={{ width: 56, height: 56 }} />
+                          className={`${otherStatus2Aggregate.count <= 0 ? 'bg-slate-300' : 'bg-slate-800'}`}
+                          style={{ height: 4, width: '100%' }}
+                        />
 
-                          <div className="d-flex flex-column flex-lg-row align-items-lg-start justify-content-between gap-3">
-                            <div className="d-flex align-items-start gap-3 min-w-0 flex-grow-1">
-                              <span
-                                className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${otherInactive ? 'text-slate-500' : 'text-slate-700'}`}
-                                style={{ width: 40, height: 40, background: 'rgba(248,250,252,0.95)' }}
-                                title="Gabungan status di luar 12 tahap utama"
-                              >
-                                <i className="bi bi-collection" aria-hidden="true" />
+                        <div className="d-flex flex-column flex-lg-row align-items-lg-start justify-content-between gap-3 p-3 p-md-4 position-relative">
+                        <div className="d-flex align-items-start gap-3 min-w-0 flex-grow-1">
+                          <span
+                            className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${otherStatus2Aggregate.count <= 0 ? 'text-slate-500' : 'text-slate-700'}`}
+                            style={{ width: 40, height: 40, background: 'rgba(248,250,252,0.95)' }}
+                            title="Wadah status di luar 12 tahap utama"
+                          >
+                            <i className="bi bi-collection" aria-hidden="true" />
+                          </span>
+
+                          <div className="min-w-0 flex-grow-1">
+                            <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                              <span className={`badge rounded-pill ${otherStatus2Aggregate.count <= 0 ? 'text-bg-light border text-secondary' : 'text-bg-dark'}`}>
+                                Status Lainnya
                               </span>
-
-                              <div className="min-w-0 flex-grow-1">
-                                <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                                  <span className={`badge rounded-pill ${otherInactive ? 'text-bg-light border text-secondary' : 'text-bg-dark'}`}>
-                                    Status Lainnya
-                                  </span>
-                                  <span className={`badge rounded-pill ${otherInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border text-slate-700'}`}>
-                                    {otherStatus2Aggregate.distinctCount} status
-                                  </span>
-                                </div>
-
-                                <h3 className={`h6 fw-black mb-2 ${otherInactive ? 'text-slate-500' : 'text-slate-900'}`}>
-                                  Gabungan semua status di luar 12 tahap utama
-                                </h3>
-
-                                <p className={`small mb-0 ${otherInactive ? 'text-slate-400' : 'text-muted'}`} style={{ lineHeight: 1.5 }}>
-                                  {otherStatus2Aggregate.distinctCount > 0
-                                    ? otherPreview + (otherStatus2Aggregate.labels.length > 6 ? ` • +${otherStatus2Aggregate.labels.length - 6} status lain` : '')
-                                    : 'Tidak ada status lain pada filter aktif.'}
-                                </p>
-                              </div>
+                              <span className={`badge rounded-pill ${otherStatus2Aggregate.count <= 0 ? 'text-bg-light border text-secondary' : 'text-bg-white border text-slate-700'}`}>
+                                {otherStatus2Aggregate.distinctCount} status
+                              </span>
+                              <span className={`badge rounded-pill ${otherStatus2Aggregate.count <= 0 ? 'text-bg-light border text-secondary' : 'text-bg-white border text-slate-700'}`}>
+                                {otherStatus2Aggregate.count} baris
+                              </span>
                             </div>
 
-                            <div className="d-flex flex-column align-items-lg-end gap-2 flex-shrink-0">
-                              <span className={`badge rounded-pill ${otherInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border text-slate-700'}`}>
-                                {otherCount} baris
-                              </span>
-                              <div className={`text-end ${otherInactive ? 'text-slate-500' : 'text-slate-900'}`}>
-                                <div className="text-lg fw-black safe-number" title={formatCurrency(otherValue)}>{formatCurrency(otherValue)}</div>
-                                <div className={`small ${otherInactive ? 'text-slate-400' : 'text-muted'}`}>
-                                  {otherInactive ? 'Belum ada nilai pada filter aktif' : `${otherPercentage.toFixed(1)}% of total`}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                            <h3 className={`h6 fw-black mb-2 ${otherStatus2Aggregate.count <= 0 ? 'text-slate-500' : 'text-slate-900'}`}>
+                              Status di luar 12 tahap utama
+                            </h3>
 
-                          <div className={`mt-4 h-2 rounded-full overflow-hidden border border-black/5 ${otherInactive ? 'bg-slate-200' : 'bg-slate-100'}`}>
-                            <div
-                              className={`h-full rounded-full transition-all duration-1000 ${otherInactive ? 'bg-slate-300' : 'bg-slate-700'}`}
-                              style={{ width: `${otherPercentage}%` }}
-                            />
+                            <p className={`small mb-0 ${otherStatus2Aggregate.count <= 0 ? 'text-slate-400' : 'text-muted'}`} style={{ lineHeight: 1.5 }}>
+                              {otherStatus2Aggregate.distinctCount > 0
+                                ? 'Status-status berikut tetap dipisahkan per card agar lebih mudah dibedakan.'
+                                : 'Tidak ada status lain pada filter aktif.'}
+                            </p>
                           </div>
                         </div>
+
+                        <div className={`text-lg fw-black safe-number flex-shrink-0 ${otherStatus2Aggregate.count <= 0 ? 'text-slate-500' : 'text-slate-900'}`} title={formatCurrency(otherStatus2Aggregate.sum)}>
+                          {formatCurrency(otherStatus2Aggregate.sum)}
+                        </div>
                       </div>
-                    );
-                  })()}
+                      </div>
+
+                      {otherStatus2Cards.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 position-relative">
+                          {otherStatus2Cards.map(({ key, label }) => {
+                            const theme = getStatusTheme(label);
+                            const value = status2Stats[key]?.sum || 0;
+                            const rowCount = status2Stats[key]?.count || 0;
+                            const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
+                            const isInactive = value <= 0;
+                            const cardToneClasses = isInactive ? 'bg-slate-50 border-slate-200' : `${theme.bg} ${theme.border}`;
+                            const accentBarClass = isInactive ? 'bg-slate-300' : theme.bar;
+                            const accentTextClass = isInactive ? 'text-slate-500' : theme.text;
+
+                            return (
+                              <div
+                                key={key}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                  setStatus2ModalKey(key);
+                                  setStatus2ModalLabel(label);
+                                  setStatus2ModalOpen(true);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setStatus2ModalKey(key);
+                                    setStatus2ModalLabel(label);
+                                    setStatus2ModalOpen(true);
+                                  }
+                                }}
+                                className={`${cardToneClasses} border p-4 rounded-xl shadow-sm hover:shadow-md transition-all group overflow-hidden relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 h-100 d-flex flex-column`}
+                                title="Klik untuk melihat detail data"
+                              >
+                                <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${accentBarClass}`}></div>
+
+                                <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
+                                  <div className="d-flex align-items-start gap-2 min-w-0 flex-grow-1">
+                                    <span
+                                      className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${accentTextClass}`}
+                                      style={{ width: 28, height: 28, background: isInactive ? 'rgba(248,250,252,0.95)' : 'rgba(255,255,255,0.55)' }}
+                                      title="Status lainnya"
+                                    >
+                                      <i className="bi bi-tag" aria-hidden="true" />
+                                    </span>
+                                    <div className="min-w-0 flex-grow-1">
+                                      <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                        <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} ${accentTextClass}`}>
+                                          Status lain
+                                        </span>
+                                      </div>
+                                      <p
+                                        className={`text-[9px] font-extrabold uppercase tracking-tight mb-0 ${accentTextClass}`}
+                                        title={label}
+                                        style={{ lineHeight: 1.35, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                      >
+                                        {label}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} flex-shrink-0`}>
+                                    {rowCount} baris
+                                  </span>
+                                </div>
+
+                                <div className="mt-auto">
+                                  <p className={`text-base font-black leading-none safe-number mb-2 ${isInactive ? 'text-slate-500' : 'text-slate-900'}`} title={formatCurrency(value)}>
+                                    {formatCurrency(value)}
+                                  </p>
+                                  <div className={`small mb-3 ${isInactive ? 'text-slate-400' : 'text-muted'}`} style={{ minHeight: 32, lineHeight: 1.35 }}>
+                                    {isInactive ? 'Belum ada nilai pada filter aktif' : 'Status non-utama'}
+                                  </div>
+
+                                  <div className="d-flex align-items-center justify-content-between gap-2">
+                                    <span className={`text-[9px] font-bold ${accentTextClass} opacity-70 tabular-nums`}>
+                                      {percentage.toFixed(1)}% of total
+                                    </span>
+                                    <div className={`w-16 h-1.5 rounded-full overflow-hidden border border-black/5 flex-shrink-0 ${isInactive ? 'bg-slate-200' : 'bg-white/50'}`}>
+                                      <div
+                                        className={`${accentBarClass} h-full rounded-full transition-all duration-1000`}
+                                        style={{ width: `${percentage}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm text-slate-400 position-relative">
+                          Tidak ada status lain pada filter aktif.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
