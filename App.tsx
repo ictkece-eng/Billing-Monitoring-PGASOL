@@ -897,6 +897,99 @@ const App: React.FC = () => {
   const normalizeStatus2 = (s: string | undefined | null) => (s || '').trim();
   const normalizeStatus2Key = (s: string | undefined | null) => normalizeStatus2(s).toLowerCase();
 
+  const preferredStatus2Order = useMemo(
+    () => [
+      'RO-REKAP',
+      'VOW-REVIEW VOW',
+      'BY SAP POLLER-APPROVAL VOW',
+      'SUMBIT BAST',
+      'REVIEW 1',
+      'APPROVAL MANAGER',
+      'REQ SAP',
+      'SUBMIT SA BY ASST MANAGER',
+      'REQ INV INTERNAL',
+      'VERIFIKASI I VENDOR',
+      'PAID',
+    ],
+    []
+  );
+
+  const normalizeStatus2OrderKey = (value: unknown) =>
+    String(value ?? '')
+      .toLowerCase()
+      .replace(/submit/g, 'sumbit')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const preferredStatus2OrderMap = useMemo(() => {
+    const map = new Map<string, number>();
+    preferredStatus2Order.forEach((status, index) => {
+      map.set(normalizeStatus2OrderKey(status), index);
+    });
+    return map;
+  }, [preferredStatus2Order]);
+
+  const canonicalStatus2AliasEntries = useMemo(() => {
+    const aliases: Array<readonly [string, string]> = [
+      ['RO-REKAP', 'RO-REKAP'],
+      ['RO REKAP', 'RO-REKAP'],
+      ['VOW-REVIEW VOW', 'VOW-REVIEW VOW'],
+      ['VOW REVIEW VOW', 'VOW-REVIEW VOW'],
+      ['REVIEW VOW', 'VOW-REVIEW VOW'],
+      ['BY SAP POLLER-APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
+      ['BY SAP POLLER APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
+      ['SAP POLLER-APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
+      ['SAP POLLER APPROVAL VOW', 'BY SAP POLLER-APPROVAL VOW'],
+      ['SUMBIT BAST', 'SUMBIT BAST'],
+      ['SUBMIT BAST', 'SUMBIT BAST'],
+      ['REVIEW 1', 'REVIEW 1'],
+      ['APPROVAL MANAGER', 'APPROVAL MANAGER'],
+      ['REQ SAP', 'REQ SAP'],
+      ['SUBMIT SA BY ASST MANAGER', 'SUBMIT SA BY ASST MANAGER'],
+      ['SUMBIT SA BY ASST MANAGER', 'SUBMIT SA BY ASST MANAGER'],
+      ['REQ INV INTERNAL', 'REQ INV INTERNAL'],
+      ['VERIFIKASI I VENDOR', 'VERIFIKASI I VENDOR'],
+      ['PAID', 'PAID'],
+    ];
+
+    return aliases
+      .map(([alias, canonical]) => [normalizeStatus2OrderKey(alias), canonical] as const)
+      .sort((a, b) => b[0].length - a[0].length);
+  }, []);
+
+  const status2FlowMetaMap = useMemo(() => {
+    const entries = [
+      ['RO-REKAP', { step: 1, icon: 'bi bi-journal-check', shortLabel: 'Step 1' }],
+      ['VOW-REVIEW VOW', { step: 2, icon: 'bi bi-search', shortLabel: 'Step 2' }],
+      ['BY SAP POLLER-APPROVAL VOW', { step: 3, icon: 'bi bi-diagram-3', shortLabel: 'Step 3' }],
+      ['SUMBIT BAST', { step: 4, icon: 'bi bi-send-check', shortLabel: 'Step 4' }],
+      ['REVIEW 1', { step: 5, icon: 'bi bi-clipboard2-check', shortLabel: 'Step 5' }],
+      ['APPROVAL MANAGER', { step: 6, icon: 'bi bi-person-check', shortLabel: 'Step 6' }],
+      ['REQ SAP', { step: 7, icon: 'bi bi-file-earmark-arrow-up', shortLabel: 'Step 7' }],
+      ['SUBMIT SA BY ASST MANAGER', { step: 8, icon: 'bi bi-person-workspace', shortLabel: 'Step 8' }],
+      ['REQ INV INTERNAL', { step: 9, icon: 'bi bi-receipt', shortLabel: 'Step 9' }],
+      ['VERIFIKASI I VENDOR', { step: 10, icon: 'bi bi-patch-check', shortLabel: 'Step 10' }],
+      ['PAID', { step: 11, icon: 'bi bi-cash-coin', shortLabel: 'Step 11' }],
+    ] as const;
+
+    const map = new Map<string, { step: number; icon: string; shortLabel: string }>();
+    entries.forEach(([status, meta]) => {
+      map.set(normalizeStatus2OrderKey(status), meta);
+    });
+    return map;
+  }, []);
+
+  const getStatus2FlowMeta = (status: string) => {
+    return (
+      status2FlowMetaMap.get(normalizeStatus2OrderKey(status)) || {
+        step: null,
+        icon: 'bi bi-collection',
+        shortLabel: 'Status',
+      }
+    );
+  };
+
   // Canonicalize status2 so cards match Excel/pivot columns consistently.
   // - Keep blanks/placeholders as a dedicated bucket (NOT manual) so counts match the source file
   // - Map case-insensitively to STATUS_COLS
@@ -911,12 +1004,16 @@ const App: React.FC = () => {
   const canonicalizeStatus2 = (raw: unknown): string => {
     const s = normalizeStatus2Text(raw);
     const key = s.toLowerCase();
+    const orderKey = normalizeStatus2OrderKey(s);
 
     if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') {
       return 'Status2 Kosong';
     }
 
     if (key === 'manual') return 'manual';
+
+    const canonicalAlias = canonicalStatus2AliasEntries.find(([alias]) => alias === orderKey || orderKey.startsWith(`${alias} `));
+    if (canonicalAlias) return canonicalAlias[1];
 
     const canonicalExact = STATUS_COLS.find(col => normalizeStatus2Text(col).toLowerCase() === key);
     if (canonicalExact) return canonicalExact;
@@ -971,8 +1068,23 @@ const App: React.FC = () => {
 
   // Keep card order stable based on status2 source order; values still follow active filters.
   const sortedStatus2Cards = useMemo(() => {
-    return status2CardList.map(({ key, label }) => ({ key, label }));
-  }, [status2CardList]);
+    return status2CardList
+      .map(({ key, label, order }) => ({ key, label, order }))
+      .sort((a, b) => {
+        const preferredOrderA = preferredStatus2OrderMap.get(normalizeStatus2OrderKey(a.label));
+        const preferredOrderB = preferredStatus2OrderMap.get(normalizeStatus2OrderKey(b.label));
+
+        const aHasPreferredOrder = preferredOrderA !== undefined;
+        const bHasPreferredOrder = preferredOrderB !== undefined;
+
+        if (aHasPreferredOrder && bHasPreferredOrder) return preferredOrderA - preferredOrderB;
+        if (aHasPreferredOrder) return -1;
+        if (bHasPreferredOrder) return 1;
+
+        return a.order - b.order;
+      })
+      .map(({ key, label }) => ({ key, label }));
+  }, [preferredStatus2OrderMap, status2CardList]);
 
   // Integrity check: sum of all status2 cards should equal the Grand Total Tagihan (for current filteredData).
   // If there is a mismatch, it indicates data issues (e.g., NaN/Infinity, unexpected parsing) rather than UI math.
@@ -1169,6 +1281,29 @@ const App: React.FC = () => {
     };
 
     switch (status) {
+      case 'RO-REKAP':
+        return { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', bar: 'bg-slate-500', icon: 'text-slate-400' };
+      case 'VOW-REVIEW VOW':
+        return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', bar: 'bg-cyan-500', icon: 'text-cyan-400' };
+      case 'BY SAP POLLER-APPROVAL VOW':
+        return { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-700', bar: 'bg-sky-500', icon: 'text-sky-400' };
+      case 'SUMBIT BAST':
+        return { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', bar: 'bg-indigo-500', icon: 'text-indigo-400' };
+      case 'REVIEW 1':
+      case 'Review 1':
+        return { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', bar: 'bg-violet-500', icon: 'text-violet-400' };
+      case 'APPROVAL MANAGER':
+        return { bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', text: 'text-fuchsia-700', bar: 'bg-fuchsia-500', icon: 'text-fuchsia-400' };
+      case 'REQ SAP':
+        return { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', bar: 'bg-emerald-500', icon: 'text-emerald-400' };
+      case 'SUBMIT SA BY ASST MANAGER':
+        return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', bar: 'bg-blue-500', icon: 'text-blue-400' };
+      case 'REQ INV INTERNAL':
+        return { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', bar: 'bg-amber-500', icon: 'text-amber-400' };
+      case 'VERIFIKASI I VENDOR':
+        return { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', bar: 'bg-orange-500', icon: 'text-orange-400' };
+      case 'PAID':
+        return { bg: 'bg-lime-50', border: 'border-lime-200', text: 'text-lime-700', bar: 'bg-lime-500', icon: 'text-lime-500' };
       case 'Invoice Internal': 
         return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', bar: 'bg-blue-500', icon: 'text-blue-400' };
       case 'po belum muncul': 
@@ -1177,8 +1312,6 @@ const App: React.FC = () => {
         return { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', bar: 'bg-rose-500', icon: 'text-rose-400' };
       case 'REQ SA': 
         return { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', bar: 'bg-emerald-500', icon: 'text-emerald-400' };
-      case 'Review 1': 
-        return { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', bar: 'bg-violet-500', icon: 'text-violet-400' };
       case 'VOW': 
         return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', bar: 'bg-cyan-500', icon: 'text-cyan-400' };
       default: 
@@ -1978,6 +2111,7 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {sortedStatus2Cards.map(({ key, label }) => {
                     const theme = getStatusTheme(label);
+                    const flowMeta = getStatus2FlowMeta(label);
                     const value = status2Stats[key]?.sum || 0;
                     const rowCount = status2Stats[key]?.count || 0;
                     const percentage = totalValue > 0 ? (value / totalValue) * 100 : 0;
@@ -2007,13 +2141,35 @@ const App: React.FC = () => {
                         <div className={`absolute -right-2 -top-2 w-8 h-8 rounded-full opacity-10 ${theme.bar}`}></div>
 
                         <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
-                          <p
-                            className={`text-[9px] font-extrabold uppercase tracking-tight mb-0 ${theme.text}`}
-                            title={label}
-                            style={{ lineHeight: 1.35, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                          >
-                            {label}
-                          </p>
+                          <div className="d-flex align-items-start gap-2 min-w-0 flex-grow-1">
+                            <span
+                              className={`d-inline-flex align-items-center justify-content-center rounded-circle border flex-shrink-0 ${theme.text}`}
+                              style={{ width: 28, height: 28, background: 'rgba(255,255,255,0.55)' }}
+                              title={flowMeta.step ? `Tahap ${flowMeta.step}` : 'Status'}
+                            >
+                              <i className={flowMeta.icon} aria-hidden="true" />
+                            </span>
+                            <div className="min-w-0 flex-grow-1">
+                              <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                {flowMeta.step ? (
+                                  <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} ${theme.text}`}>
+                                    Tahap {flowMeta.step}
+                                  </span>
+                                ) : (
+                                  <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} ${theme.text}`}>
+                                    {flowMeta.shortLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <p
+                                className={`text-[9px] font-extrabold uppercase tracking-tight mb-0 ${theme.text}`}
+                                title={label}
+                                style={{ lineHeight: 1.35, minHeight: 34, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                              >
+                                {label}
+                              </p>
+                            </div>
+                          </div>
                           <span className={`badge rounded-pill ${isInactive ? 'text-bg-light border text-secondary' : 'text-bg-white border'} flex-shrink-0`}>
                             {rowCount} baris
                           </span>
