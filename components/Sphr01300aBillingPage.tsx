@@ -236,10 +236,9 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
         {[
           { label: 'Total Nilai RO', amount: totals.ro, color: 'border-primary' },
           { label: 'Total Nilai Actual', amount: totals.actual, color: 'border-success' },
-          { label: 'Remaining RO - Actual', amount: totals.remaining, color: 'border-warning' },
           { label: 'Total Nilai SA', amount: totals.sa, color: 'border-info' },
         ].map(item => (
-          <div className="col-12 col-sm-6 col-xl-3" key={item.label}>
+          <div className="col-12 col-sm-6 col-xl-4" key={item.label}>
             <div className={`card h-100 border-start border-4 ${item.color} shadow-sm`}>
               <div className="card-body py-3">
                 <div className="small text-muted text-uppercase fw-bold">{item.label}</div>
