@@ -20,12 +20,14 @@ type StatusField =
 const STATUS_FIELDS: { key: StatusField; label: string }[] = [
   { key: 'bastDraftVendor', label: 'BAST Draft by Vendor' },
   { key: 'bastRequestVendor', label: 'BAST Request by Vendor' },
-  { key: 'bastReviewReviewer1', label: 'BAST Review Reviewer 1' },
-  { key: 'bastApprovalApprover', label: 'BAST Approval Approver' },
-  { key: 'bastReconfirmVendor', label: 'BAST Reconfirm by Vendor' },
+  { key: 'bastReviewReviewer1', label: 'BAST Review by Reviewer 1' },
+  { key: 'bastApprovalApprover', label: 'BAST Approval by Approver' },
+  { key: 'bastReconfirmVendor', label: 'BAST Reconfirmation by Vendor' },
   { key: 'saGrSubmission', label: 'SA/GR Submission Reviewer 1' },
   { key: 'bastFinalValidation', label: 'BAST Final Validation Reviewer 1' },
 ];
+
+const STATUS_OWNERS = ['PGASOL', 'PGASOL', 'PHR 1', 'PHR 2', 'PGASOL', 'PHR 1', 'PHR 1'];
 
 const currentPeriod = () => {
   const now = new Date();
@@ -254,6 +256,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                 <col style={{ width: 170 }} />
                 <col style={{ width: 170 }} />
                 <col style={{ width: 170 }} />
+                <col style={{ width: 150 }} />
                 {STATUS_FIELDS.map(field => <col key={field.key} style={{ width: 140 }} />)}
                 <col style={{ width: 150 }} />
                 <col style={{ width: 170 }} />
@@ -261,19 +264,25 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
               </colgroup>
               <thead className="table-secondary text-center">
                 <tr>
-                  <th rowSpan={2}>PIC</th>
-                  <th rowSpan={2}>AREA</th>
-                  <th rowSpan={2}>NO RO/SPK</th>
-                  <th rowSpan={2}>NILAI RO</th>
-                  <th rowSpan={2}>NILAI ACTUAL</th>
-                  <th rowSpan={2}>REMAINING<br />RO - ACTUAL</th>
-                  <th colSpan={7}>PROSES BAST DI SYSTEM IVENDOR</th>
-                  <th rowSpan={2}>NO SA</th>
-                  <th rowSpan={2}>NILAI SA</th>
-                  {canEdit && <th rowSpan={2}>AKSI</th>}
+                  <th rowSpan={3}>PIC</th>
+                  <th rowSpan={3}>AREA</th>
+                  <th rowSpan={3}>NO RO/SPK</th>
+                  <th rowSpan={3}>NILAI RO</th>
+                  <th rowSpan={3}>Nilai Actual</th>
+                  <th rowSpan={3}>Remaining<br />Ro - Actual</th>
+                  <th colSpan={8}>PROSES BAST di system iVendor</th>
+                  <th rowSpan={3}>NO SA</th>
+                  <th rowSpan={3}>NILAI SA</th>
+                  {canEdit && <th rowSpan={3}>AKSI</th>}
                 </tr>
                 <tr>
+                  <th rowSpan={2}>Tanggal<br />Submit Draft BAST</th>
                   {STATUS_FIELDS.map(field => <th key={field.key}>{field.label}</th>)}
+                </tr>
+                <tr>
+                  {STATUS_FIELDS.map((field, index) => (
+                    <th key={field.key}>{STATUS_OWNERS[index]}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -285,6 +294,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                     <td className="text-end text-nowrap">{formatCurrency(entry.nilaiRo)}</td>
                     <td className="text-end text-nowrap">{formatCurrency(entry.nilaiActual)}</td>
                     <td className="text-end text-nowrap">{formatCurrency(entry.nilaiRo - entry.nilaiActual)}</td>
+                    <td className="text-center text-nowrap">{entry.tanggalSubmitBast}</td>
                     {STATUS_FIELDS.map(field => (
                       <td className="text-center" key={field.key}>
                         <input type="checkbox" checked={entry[field.key]} disabled aria-label={`${field.label}, baris ${index + 1}`} />
@@ -306,7 +316,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                 ))}
                 {entries.length === 0 && (
                   <tr>
-                    <td colSpan={canEdit ? 16 : 15} className="text-center text-muted py-5">
+                    <td colSpan={canEdit ? 17 : 16} className="text-center text-muted py-5">
                       Belum ada data untuk {formatPeriod(period)}.
                       {canEdit && <span className="d-block mt-1">Klik “Tambah Baris” untuk mulai mengisi.</span>}
                     </td>
@@ -320,7 +330,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                     <td className="text-end text-nowrap">{formatCurrency(totals.ro)}</td>
                     <td className="text-end text-nowrap">{formatCurrency(totals.actual)}</td>
                     <td className="text-end text-nowrap">{formatCurrency(totals.remaining)}</td>
-                    <td colSpan={7} />
+                    <td colSpan={8} />
                     <td />
                     <td className="text-end text-nowrap">{formatCurrency(totals.sa)}</td>
                     {canEdit && <td />}

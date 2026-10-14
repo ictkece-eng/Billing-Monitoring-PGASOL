@@ -151,8 +151,8 @@ html {
 }
 
 .sphr-billing-table {
-  width: 2390px;
-  min-width: 2390px;
+  width: 2540px;
+  min-width: 2540px;
   table-layout: fixed;
   font-size: 14px;
   color: #1f2937;
@@ -175,7 +175,8 @@ html {
   font-weight: 700;
 }
 
-.sphr-billing-table thead tr:nth-child(2) th {
+.sphr-billing-table thead tr:nth-child(2) th,
+.sphr-billing-table thead tr:nth-child(3) th {
   background: #dce9f8;
   color: #173b68;
   font-weight: 700;
@@ -220,6 +221,7 @@ html {
 }
 
 :root[data-theme="dark"] .sphr-billing-table thead tr:nth-child(2) th,
+:root[data-theme="dark"] .sphr-billing-table thead tr:nth-child(3) th,
 :root[data-theme="dark"] .sphr-billing-table tfoot td {
   background: #243d5c;
   color: #e5edf8;
