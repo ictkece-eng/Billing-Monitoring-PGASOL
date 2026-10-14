@@ -47,6 +47,10 @@ In two terminals:
 
 The app will show a button **Upload TiDB** and will also try to load existing records from TiDB on startup.
 
+### Monitoring multiple projects
+
+Pilih proyek aktif sebelum impor Excel atau input manual. Tabel, dashboard, dan upload TiDB akan mengikuti proyek yang dipilih. Data lama yang belum memiliki penanda proyek otomatis dianggap sebagai `SPHR01031A`; data untuk `SPHR01300A` disimpan terpisah. Pagu `SPHR01300A` belum ditetapkan, sehingga KPI pagu/serapan kontraknya tetap diberi keterangan sampai nilainya tersedia.
+
 ## Deploy to Vercel (with TiDB)
 
 This repo includes Vercel Serverless Functions under `api/`.

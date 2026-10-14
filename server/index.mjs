@@ -29,6 +29,7 @@ const ensureBudgetRecordsTable = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS budget_records (
       id VARCHAR(191) NOT NULL,
+      project_id VARCHAR(32) NOT NULL DEFAULT 'SPHR01031A',
       status VARCHAR(32) NOT NULL,
       namaUser VARCHAR(255) NOT NULL,
       tim VARCHAR(255) NOT NULL,
@@ -48,6 +49,10 @@ const ensureBudgetRecordsTable = async () => {
       PRIMARY KEY (id)
     )
   `);
+  const [projectColumns] = await pool.query("SHOW COLUMNS FROM budget_records LIKE 'project_id'");
+  if (!Array.isArray(projectColumns) || projectColumns.length === 0) {
+    await pool.query("ALTER TABLE budget_records ADD COLUMN project_id VARCHAR(32) NOT NULL DEFAULT 'SPHR01031A'");
+  }
   schemaEnsured = true;
 };
 
@@ -91,9 +96,11 @@ const safeInt = (v) => {
   return Math.trunc(n);
 };
 
+const normalizeProjectId = (v) => v === 'SPHR01300A' ? 'SPHR01300A' : 'SPHR01031A';
+
 const fingerprint = (r) => {
   // Should be stable across imports so we can safely upsert.
-  const parts = [
+  const fields = [
     safeStr(r.namaUser).trim().toLowerCase(),
     safeStr(r.tim).trim().toLowerCase(),
     safeStr(r.periode).trim().toLowerCase(),
@@ -104,15 +111,19 @@ const fingerprint = (r) => {
     safeStr(r.status2).trim().toLowerCase(),
     safeStr(r.saNo).trim().toLowerCase(),
     safeStr(r.keterangan).trim().toLowerCase(),
-  ].join('|');
+  ];
+  const projectId = normalizeProjectId(r.projectId);
+  const parts = projectId === 'SPHR01031A' ? fields : [projectId, ...fields];
 
-  return crypto.createHash('sha256').update(parts).digest('hex');
+  return crypto.createHash('sha256').update(parts.join('|')).digest('hex');
 };
 
 const normalizeRecord = (r) => {
-  const id = fingerprint(r);
+  const projectId = normalizeProjectId(r.projectId);
+  const id = fingerprint({ ...r, projectId });
   return {
     id,
+    projectId,
     status: safeStr(r.status || 'On Progress').trim() || 'On Progress',
     namaUser: safeStr(r.namaUser || 'Unknown').trim() || 'Unknown',
     tim: safeStr(r.tim || 'No Team').trim() || 'No Team',
@@ -176,7 +187,7 @@ app.get('/api/budget-records', async (_req, res) => {
   try {
     await ensureBudgetRecordsTable();
     const [rows] = await pool.query(
-      `SELECT id, status, namaUser, tim, periode, CAST(nilaiTagihan AS SIGNED) AS nilaiTagihan, noRO, tglBAST, noBAST, status2, emailSoftCopy, saNo, tglKirimJKT, reviewerVendor, keterangan
+      `SELECT id, project_id AS projectId, status, namaUser, tim, periode, CAST(nilaiTagihan AS SIGNED) AS nilaiTagihan, noRO, tglBAST, noBAST, status2, emailSoftCopy, saNo, tglKirimJKT, reviewerVendor, keterangan
        FROM budget_records
        ORDER BY updated_at DESC`
     );
@@ -290,6 +301,10 @@ app.post('/api/budget-records/upload', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Body harus { records: BudgetRecord[] }' });
     return;
   }
+  if (input.some(record => record?.projectId !== undefined && !['SPHR01031A', 'SPHR01300A'].includes(record.projectId))) {
+    res.status(400).json({ ok: false, error: 'projectId harus SPHR01031A atau SPHR01300A' });
+    return;
+  }
 
   try {
     await ensureBudgetRecordsTable();
@@ -315,6 +330,7 @@ app.post('/api/budget-records/upload', async (req, res) => {
 
       const cols = [
         'id',
+        'project_id',
         'status',
         'namaUser',
         'tim',
@@ -339,6 +355,7 @@ app.post('/api/budget-records/upload', async (req, res) => {
       for (const r of chunk) {
         values.push(
           r.id,
+          r.projectId,
           r.status,
           r.namaUser,
           r.tim,
@@ -358,6 +375,7 @@ app.post('/api/budget-records/upload', async (req, res) => {
 
       const sql = `INSERT INTO budget_records (${cols.join(',')}) VALUES ${placeholders}
         ON DUPLICATE KEY UPDATE
+          project_id=VALUES(project_id),
           status=VALUES(status),
           namaUser=VALUES(namaUser),
           tim=VALUES(tim),

@@ -1,6 +1,9 @@
 
+export type ProjectId = 'SPHR01031A' | 'SPHR01300A';
+
 export interface BudgetRecord {
   id: string;
+  projectId?: ProjectId;
   status: 'Completed' | 'On Progress' | 'Canceled';
   namaUser: string;
   tim: string;

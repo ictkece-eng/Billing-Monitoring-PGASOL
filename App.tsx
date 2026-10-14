@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { BudgetRecord } from './types';
-import { CONTRACT_VALUE_IDR, MOCK_DATA, STATUS_COLS } from './constants';
+import { BudgetRecord, ProjectId } from './types';
+import { MOCK_DATA, PROJECTS, STATUS_COLS } from './constants';
 import PivotTable from './components/PivotTable';
 import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
@@ -17,6 +17,7 @@ import { parseNotaPajakToPembatalan, NotaPembatalanData } from './services/notaP
 import { exportNotaPembatalanToPDF } from './services/notaPembatalanExport';
 
 type PeriodeOption = { value: string; label: string };
+const getRecordProjectId = (record: BudgetRecord): ProjectId => record.projectId || 'SPHR01031A';
 
 const ALL_PERIODE_LABEL = 'Semua Periode';
 const ALL_YEAR_VALUE = 'AllYear';
@@ -171,6 +172,7 @@ const shiftYearMonthKey = (key: string, monthsToAdd: number) => {
 
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
+  const [selectedProjectId, setSelectedProjectId] = useState<ProjectId>('SPHR01031A');
   const [filterYear, setFilterYear] = useState<string>(ALL_YEAR_VALUE);
   const [filterMonth, setFilterMonth] = useState<string>(ALL_MONTH_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -578,6 +580,21 @@ const App: React.FC = () => {
 
   // Guard: keep all aggregations consistent even if some rows contain non-finite numbers (NaN/Infinity).
   const safeAmount = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+  const scopedData = useMemo(
+    () => data.filter(record => getRecordProjectId(record) === selectedProjectId),
+    [data, selectedProjectId]
+  );
+  const projectSummaries = useMemo(
+    () => PROJECTS.map(project => {
+      const records = data.filter(record => getRecordProjectId(record) === project.id);
+      return {
+        ...project,
+        recordCount: records.length,
+        absorbed: records.reduce((sum, record) => sum + safeAmount(record.nilaiTagihan), 0),
+      };
+    }),
+    [data]
+  );
 
   // Load persisted data from TiDB (if available). Non-breaking behavior:
   // - If API is not running, silently keep existing local/mock data.
@@ -602,20 +619,20 @@ const App: React.FC = () => {
 
   const handleUploadToTiDB = async () => {
     if (tidbUploading) return;
-    if (!data || data.length === 0) {
+    if (scopedData.length === 0) {
       alert('Tidak ada data untuk diupload. Silakan impor Excel terlebih dahulu.');
       return;
     }
     setTidbUploading(true);
     try {
-      const resp = await uploadBudgetRecordsToTiDB(data);
-      const sent = resp.sentUnique ?? resp.received ?? data.length;
+      const resp = await uploadBudgetRecordsToTiDB(scopedData);
+      const sent = resp.sentUnique ?? resp.received ?? scopedData.length;
       const skipped = resp.skippedDuplicates ?? 0;
       alert(
         `Upload ke TiDB selesai. Baris terkirim (unik): ${sent}.` +
           (skipped > 0 ? ` Duplikat tidak dikirim: ${skipped}.` : '') +
           ` affectedRows: ${resp.affectedRows ?? '-'}\n\n` +
-          `Tips: setelah ini data akan bisa di-load lagi tanpa impor ulang (saat API TiDB aktif).`
+          `Proyek ${selectedProjectId} akan terpisah saat data di-load kembali (saat API TiDB aktif).`
       );
     } catch (e: any) {
       alert(`Upload ke TiDB gagal: ${String(e?.message || e)}`);
@@ -627,7 +644,7 @@ const App: React.FC = () => {
   const periodOptions = useMemo(() => {
     const grouped = new Map<number, number[]>();
 
-    for (const row of data) {
+    for (const row of scopedData) {
       const parts = extractYearMonthParts(row.periode);
       if (!parts) continue;
 
@@ -661,7 +678,7 @@ const App: React.FC = () => {
           ];
 
     return { grouped, yearOptions, monthOptions };
-  }, [data, filterYear]);
+  }, [scopedData, filterYear]);
 
   // Keep selected year/month valid when the underlying data changes.
   useEffect(() => {
@@ -688,7 +705,7 @@ const App: React.FC = () => {
   }, [filterMonth, filterYear]);
 
   const filteredData = useMemo(() => {
-    let result = data;
+    let result = scopedData;
     
     // Period Filtering
     if (filterYear !== ALL_YEAR_VALUE) {
@@ -716,7 +733,7 @@ const App: React.FC = () => {
     }
 
     return result;
-  }, [data, filterMonth, filterYear, searchQuery]);
+  }, [scopedData, filterMonth, filterYear, searchQuery]);
 
   const totalValue = useMemo(
     () => filteredData.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
@@ -725,12 +742,13 @@ const App: React.FC = () => {
 
   // Total serapan dari seluruh data (untuk perbandingan dengan nilai kontrak awal)
   const totalAbsorbedAll = useMemo(
-    () => data.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
-    [data]
+    () => scopedData.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
+    [scopedData]
   );
 
   // Anggaran Kontrak (Nilai Awal) + Analisis Serapan
-  const contractValue = CONTRACT_VALUE_IDR;
+  const contractValue = PROJECTS.find(project => project.id === selectedProjectId)?.contractValue ?? 0;
+  const hasContractBudget = PROJECTS.some(project => project.id === selectedProjectId && project.contractValue !== null);
   // IMPORTANT: gunakan seluruh data agar sisa anggaran & estimasi tidak berubah saat filter periode/search
   const absorbedValue = totalAbsorbedAll;
   // Snapshot berdasarkan filter yang sedang aktif (untuk perbandingan)
@@ -763,7 +781,7 @@ const App: React.FC = () => {
   // Estimasi sisa bulan: dihitung dari data per bulan (periode) dan memperhitungkan bulan kosong (0)
   const monthlyRunRate = useMemo(() => {
     // aggregate by normalized Year-Month
-    const totalsByYM = data.reduce((acc, curr) => {
+    const totalsByYM = scopedData.reduce((acc, curr) => {
       const key = normalizePeriodeToYearMonthKey(curr.periode);
       if (!key) return acc;
       acc[key] = (acc[key] || 0) + safeAmount(curr.nilaiTagihan);
@@ -795,7 +813,7 @@ const App: React.FC = () => {
       averagePerMonth: avg,
       mode: 'range' as const,
     };
-  }, [data]);
+  }, [scopedData]);
 
   const monthlyRunRateFiltered = useMemo(() => {
     const totalsByYM = filteredData.reduce((acc, curr) => {
@@ -832,12 +850,12 @@ const App: React.FC = () => {
   }, [filteredData]);
 
   const latestPeriodKey = useMemo(() => {
-    const keys = data
+    const keys = scopedData
       .map(row => normalizePeriodeToYearMonthKey(row.periode))
       .filter((key): key is string => Boolean(key))
       .sort();
     return keys.length > 0 ? keys[keys.length - 1] : null;
-  }, [data]);
+  }, [scopedData]);
 
   const latestFilteredPeriodKey = useMemo(() => {
     const keys = filteredData
@@ -1051,7 +1069,7 @@ const App: React.FC = () => {
       }
     }
 
-    for (const item of data) {
+    for (const item of scopedData) {
       const raw = canonicalizeStatus2(item.status2);
       const key = normalizeStatus2Key(raw) || 'manual';
       const label = raw || 'manual';
@@ -1061,7 +1079,7 @@ const App: React.FC = () => {
     }
 
     return Array.from(map.values()).sort((a, b) => a.order - b.order);
-  }, [data, preferredStatus2Order]);
+  }, [scopedData, preferredStatus2Order]);
 
   // Stats per status2 (dynamic): sum + count
   const status2Stats = useMemo<Record<string, { sum: number; count: number }>>(() => {
@@ -1235,6 +1253,7 @@ const App: React.FC = () => {
   // Goal: if the same row (same fields + same nilai) is imported again, it will NOT overwrite or duplicate.
   const getRecordFingerprint = (r: BudgetRecord) => {
     const parts = [
+      getRecordProjectId(r),
       (r.namaUser || '').trim().toLowerCase(),
       (r.tim || '').trim().toLowerCase(),
       (r.periode || '').trim().toLowerCase(),
@@ -1252,6 +1271,7 @@ const App: React.FC = () => {
   // This helps avoid adding duplicates when the same transaction is re-imported but the amount is corrected.
   const getRecordLooseFingerprint = (r: BudgetRecord) => {
     const parts = [
+      getRecordProjectId(r),
       (r.namaUser || '').trim().toLowerCase(),
       (r.tim || '').trim().toLowerCase(),
       (r.periode || '').trim().toLowerCase(),
@@ -1269,6 +1289,7 @@ const App: React.FC = () => {
   // Used ONLY to safely repair status2 buckets without adding duplicates.
   const getRecordUltraLooseFingerprint = (r: BudgetRecord) => {
     const parts = [
+      getRecordProjectId(r),
       (r.namaUser || '').trim().toLowerCase(),
       (r.tim || '').trim().toLowerCase(),
       (r.periode || '').trim().toLowerCase(),
@@ -1386,10 +1407,11 @@ const App: React.FC = () => {
   };
 
   const handleAddRecord = (record: BudgetRecord) => {
-    setData(prev => [...prev, record]);
+    setData(prev => [...prev, { ...record, projectId: selectedProjectId }]);
   };
 
   const handleImportExcel = (importedData: BudgetRecord[]) => {
+    const projectImportedData = importedData.map(record => ({ ...record, projectId: selectedProjectId }));
     setData(prev => {
       // Only de-duplicate against data that already exists in state.
       // This ensures totals match the Excel file on first import, even if the file itself
@@ -1426,7 +1448,7 @@ const App: React.FC = () => {
       const skippedRows: BudgetRecord[] = [];
       const repairedRows: Array<{ idx: number; oldValue: number; newValue: number; status2Key: string }> = [];
       const repairedStatus2Rows: Array<{ idx: number; newStatus2: string }> = [];
-      for (const row of importedData) {
+      for (const row of projectImportedData) {
         const fp = getRecordFingerprint(row);
         if (existing.has(fp)) {
           skipped++;
@@ -1463,7 +1485,7 @@ const App: React.FC = () => {
         toAdd.push(row);
       }
 
-      const fileSums = sumByStatus2Key(importedData);
+      const fileSums = sumByStatus2Key(projectImportedData);
       const addedSums = sumByStatus2Key(toAdd);
       const skippedSums = sumByStatus2Key(skippedRows);
 
@@ -1491,10 +1513,10 @@ const App: React.FC = () => {
       nextData = [...nextData, ...toAdd];
       const nextSums = sumByStatus2Key(nextData);
 
-      const fileCounts = countByStatus2Key(importedData);
-      const fileLabels = labelByStatus2Key(importedData);
+      const fileCounts = countByStatus2Key(projectImportedData);
+      const fileLabels = labelByStatus2Key(projectImportedData);
 
-      const fileTotal = importedData.reduce((acc, r) => acc + safeAmount(r.nilaiTagihan), 0);
+      const fileTotal = projectImportedData.reduce((acc, r) => acc + safeAmount(r.nilaiTagihan), 0);
 
       const manualFile = fileSums['manual'] || 0;
       const manualAdded = addedSums['manual'] || 0;
@@ -1514,7 +1536,7 @@ const App: React.FC = () => {
       // Feedback after state update (async safe)
       queueMicrotask(() => {
         alert(
-          `Import selesai. Total baris file: ${importedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}. Diperbaiki nilai: ${repaired}. Perbaiki status2: ${repairedStatus2}.\n\n` +
+          `Import ${selectedProjectId} selesai. Total baris file: ${projectImportedData.length}. Ditambahkan: ${toAdd.length}. Duplikat dilewati: ${skipped}. Diperbaiki nilai: ${repaired}. Perbaiki status2: ${repairedStatus2}.\n\n` +
           `Cek SUM status2=manual (berdasarkan kartu):\n` +
           `• SUM manual (file): ${formatCurrency(manualFile)}\n` +
           `• SUM manual (ditambahkan): ${formatCurrency(manualAdded)}\n` +
@@ -1557,7 +1579,7 @@ const App: React.FC = () => {
         // Optional: notify which Excel row numbers already exist in TiDB.
         // This does NOT change import behavior; it's only an informational alert.
         (async () => {
-          const stats = await getTiDBDuplicateRowNumbers(importedData);
+          const stats = await getTiDBDuplicateRowNumbers(projectImportedData);
           if (!stats) return;
 
           if (stats.duplicatedRows <= 0) {
@@ -1667,6 +1689,7 @@ const App: React.FC = () => {
             <BudgetInputForm 
               onAdd={handleAddRecord} 
               onClose={() => setIsInputOpen(false)} 
+              projectId={selectedProjectId}
             />
           )}
 
@@ -1790,6 +1813,7 @@ const App: React.FC = () => {
                         <li className="px-3 py-2">
                           <ExcelImport
                             onImport={handleImportExcel}
+                            projectId={selectedProjectId}
                             buttonClassName="btn btn-sm btn-success w-100 micro-hover"
                             label="Impor Excel"
                           />
@@ -1901,12 +1925,67 @@ const App: React.FC = () => {
           </header>
 
       <main className="container py-4">
+        <div className="row g-3 mb-4" aria-label="Ringkasan proyek">
+          {projectSummaries.map(project => (
+            <div key={project.id} className="col-12 col-md-6">
+              <button
+                type="button"
+                className={`card w-100 h-100 text-start shadow-sm ${selectedProjectId === project.id ? 'border-primary border-2' : 'border-0'}`}
+                onClick={() => {
+                  setSelectedProjectId(project.id);
+                  setFilterYear(ALL_YEAR_VALUE);
+                  setFilterMonth(ALL_MONTH_VALUE);
+                  setAiInsight(null);
+                }}
+                aria-pressed={selectedProjectId === project.id}
+              >
+                <span className="card-body d-flex justify-content-between align-items-center gap-3">
+                  <span>
+                    <span className="d-block fw-bold">{project.label}</span>
+                    <span className="small text-muted">
+                      {project.recordCount} transaksi
+                      {project.contractValue === null ? ' · Pagu belum ditetapkan' : ` · Pagu ${formatCurrency(project.contractValue)}`}
+                    </span>
+                  </span>
+                  <span className="text-end">
+                    <span className="d-block small text-muted">Terserap</span>
+                    <span className="fw-bold text-nowrap">{formatCurrency(project.absorbed)}</span>
+                  </span>
+                </span>
+              </button>
+            </div>
+          ))}
+        </div>
+
         {/* Controls & Metrics */}
         <div className="row g-4 mb-4">
           <div className="col-12 col-md-6">
             <div className="card shadow-sm border-0">
               <div className="card-body">
                 <div className="row g-3">
+                  <div className="col-12">
+                    <label className="form-label small text-uppercase text-muted fw-bold">Proyek aktif · target impor dan upload</label>
+                    <select
+                      value={selectedProjectId}
+                      onChange={(e) => {
+                        const project = PROJECTS.find(item => item.id === e.target.value);
+                        if (!project) return;
+                        const projectId = project.id;
+                        setSelectedProjectId(projectId);
+                        setFilterYear(ALL_YEAR_VALUE);
+                        setFilterMonth(ALL_MONTH_VALUE);
+                        setAiInsight(null);
+                      }}
+                      className="form-select"
+                    >
+                      {PROJECTS.map(project => (
+                        <option key={project.id} value={project.id}>{project.label}</option>
+                      ))}
+                    </select>
+                    <div className="form-text">
+                      Impor Excel, input manual, tabel, dan upload TiDB mengikuti proyek yang dipilih.
+                    </div>
+                  </div>
                   <div className="col-12 col-md-6">
                     <label className="form-label small text-uppercase text-muted fw-bold">Filter Tahun</label>
                     <select
@@ -2025,6 +2104,7 @@ const App: React.FC = () => {
           <>
             {/* Contract Budget Card */}
             <div className="mb-10">
+              {hasContractBudget ? (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-6">
                   <div className="flex flex-col gap-5">
@@ -2141,10 +2221,15 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
+              ) : (
+                <div className="alert alert-info mb-0" role="status">
+                  Pagu untuk {selectedProjectId} belum ditetapkan. Data transaksi tetap dipisahkan dan bisa dibaca, tetapi KPI serapan anggaran akan ditampilkan setelah pagu proyek diunggah.
+                </div>
+              )}
             </div>
 
             {/* Status Billing Summary Cards - COLORFUL VERSION */}
-            {showStatus2Summary && data.length > 0 && (
+            {showStatus2Summary && scopedData.length > 0 && (
               <div ref={status2SummaryRef} className="mb-10" id="ringkasan-status2">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -2526,7 +2611,7 @@ const App: React.FC = () => {
         )}
 
         {/* Dynamic Content */}
-        {data.length === 0 ? (
+        {scopedData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
             <div className="p-5 bg-slate-50 rounded-full mb-5">
                 <svg className="w-16 h-16 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2534,7 +2619,7 @@ const App: React.FC = () => {
                 </svg>
             </div>
             <p className="text-xl font-bold text-slate-700">Aplikasi Monitor Budget Siap</p>
-            <p className="text-sm max-w-sm text-center mt-2 px-6">Unggah file Excel Anda yang berisi rekapitulasi budget untuk melihat visualisasi data otomatis dan analisis AI.</p>
+            <p className="text-sm max-w-sm text-center mt-2 px-6">Pilih proyek aktif, lalu impor file Excel proyek tersebut untuk melihat visualisasi data dan analisis AI.</p>
           </div>
         ) : (
           <div className="space-y-8">

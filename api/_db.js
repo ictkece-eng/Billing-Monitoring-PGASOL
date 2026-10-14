@@ -58,6 +58,7 @@ export const ensureBudgetRecordsTable = async (pool) => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS budget_records (
       id VARCHAR(191) NOT NULL,
+      project_id VARCHAR(32) NOT NULL DEFAULT 'SPHR01031A',
       status VARCHAR(32) NOT NULL,
       namaUser VARCHAR(255) NOT NULL,
       tim VARCHAR(255) NOT NULL,
@@ -77,6 +78,10 @@ export const ensureBudgetRecordsTable = async (pool) => {
       PRIMARY KEY (id)
     )
   `);
+  const [projectColumns] = await pool.query("SHOW COLUMNS FROM budget_records LIKE 'project_id'");
+  if (!Array.isArray(projectColumns) || projectColumns.length === 0) {
+    await pool.query("ALTER TABLE budget_records ADD COLUMN project_id VARCHAR(32) NOT NULL DEFAULT 'SPHR01031A'");
+  }
   _schemaEnsured = true;
 };
 

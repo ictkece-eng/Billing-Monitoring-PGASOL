@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     const pool = getPool();
     await ensureBudgetRecordsTable(pool);
     const [rows] = await pool.query(
-      `SELECT id, status, namaUser, tim, periode,
+      `SELECT id, project_id AS projectId, status, namaUser, tim, periode,
               CAST(nilaiTagihan AS SIGNED) AS nilaiTagihan,
               noRO, tglBAST, noBAST, status2, emailSoftCopy, saNo, tglKirimJKT, reviewerVendor, keterangan
          FROM budget_records

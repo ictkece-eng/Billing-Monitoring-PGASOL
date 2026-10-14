@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
-import { BudgetRecord, Status2Type } from '../types';
+import { BudgetRecord, ProjectId, Status2Type } from '../types';
 import { STATUS_COLS } from '../constants';
 
 interface BudgetInputFormProps {
   onAdd: (record: BudgetRecord) => void;
   onClose: () => void;
+  projectId?: ProjectId;
 }
 
-const BudgetInputForm: React.FC<BudgetInputFormProps> = ({ onAdd, onClose }) => {
+const BudgetInputForm: React.FC<BudgetInputFormProps> = ({ onAdd, onClose, projectId = 'SPHR01031A' }) => {
   const [formData, setFormData] = useState({
     namaUser: '',
     tim: '',
@@ -27,8 +28,17 @@ const BudgetInputForm: React.FC<BudgetInputFormProps> = ({ onAdd, onClose }) => 
 
     const newRecord: BudgetRecord = {
       id: Date.now().toString(),
+      projectId,
       ...formData,
       nilaiTagihan: Number(formData.nilaiTagihan),
+      noRO: '',
+      tglBAST: '',
+      noBAST: '',
+      emailSoftCopy: '',
+      saNo: '',
+      tglKirimJKT: '',
+      reviewerVendor: '',
+      keterangan: '',
     };
 
     onAdd(newRecord);

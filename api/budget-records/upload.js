@@ -3,6 +3,7 @@ import { ensureBudgetRecordsTable, ensureUploadHistoryTables, getPool } from '..
 import { readJsonBody } from '../_body.js';
 
 const safeStr = (v) => (v === undefined || v === null ? '' : String(v));
+const normalizeProjectId = (v) => v === 'SPHR01300A' ? 'SPHR01300A' : 'SPHR01031A';
 const safeInt = (v) => {
   const n = typeof v === 'number' ? v : Number(String(v).replace(/[^0-9\-]/g, ''));
   if (!Number.isFinite(n)) return 0;
@@ -10,7 +11,7 @@ const safeInt = (v) => {
 };
 
 const fingerprint = (r) => {
-  const parts = [
+  const fields = [
     safeStr(r.namaUser).trim().toLowerCase(),
     safeStr(r.tim).trim().toLowerCase(),
     safeStr(r.periode).trim().toLowerCase(),
@@ -21,14 +22,19 @@ const fingerprint = (r) => {
     safeStr(r.status2).trim().toLowerCase(),
     safeStr(r.saNo).trim().toLowerCase(),
     safeStr(r.keterangan).trim().toLowerCase(),
-  ].join('|');
-  return crypto.createHash('sha256').update(parts).digest('hex');
+  ];
+  const projectId = normalizeProjectId(r.projectId);
+  const parts = projectId === 'SPHR01031A' ? fields : [projectId, ...fields];
+  const key = parts.join('|');
+  return crypto.createHash('sha256').update(key).digest('hex');
 };
 
 const normalizeRecord = (r) => {
-  const id = fingerprint(r);
+  const projectId = normalizeProjectId(r.projectId);
+  const id = fingerprint({ ...r, projectId });
   return {
     id,
+    projectId,
     status: safeStr(r.status || 'On Progress').trim() || 'On Progress',
     namaUser: safeStr(r.namaUser || 'Unknown').trim() || 'Unknown',
     tim: safeStr(r.tim || 'No Team').trim() || 'No Team',
@@ -65,6 +71,12 @@ export default async function handler(req, res) {
       res.end(JSON.stringify({ ok: false, error: 'Body harus { records: BudgetRecord[] }' }));
       return;
     }
+    if (input.some(record => record?.projectId !== undefined && !['SPHR01031A', 'SPHR01300A'].includes(record.projectId))) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ ok: false, error: 'projectId harus SPHR01031A atau SPHR01300A' }));
+      return;
+    }
 
     const pool = getPool();
     await ensureBudgetRecordsTable(pool);
@@ -90,6 +102,7 @@ export default async function handler(req, res) {
 
       const cols = [
         'id',
+        'project_id',
         'status',
         'namaUser',
         'tim',
@@ -112,6 +125,7 @@ export default async function handler(req, res) {
       for (const r of chunk) {
         values.push(
           r.id,
+          r.projectId,
           r.status,
           r.namaUser,
           r.tim,
@@ -131,6 +145,7 @@ export default async function handler(req, res) {
 
       const sql = `INSERT INTO budget_records (${cols.join(',')}) VALUES ${placeholders}
         ON DUPLICATE KEY UPDATE
+          project_id=VALUES(project_id),
           status=VALUES(status),
           namaUser=VALUES(namaUser),
           tim=VALUES(tim),

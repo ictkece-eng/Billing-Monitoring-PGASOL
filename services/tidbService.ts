@@ -53,7 +53,8 @@ const safeInt = (v: unknown) => {
 
 // Must match backend fingerprint inputs (order + normalization) to ensure dedupe behavior is consistent.
 const fingerprintKey = (r: BudgetRecord) => {
-  const parts = [
+  const projectId = r.projectId || 'SPHR01031A';
+  const fields = [
     safeStr(r.namaUser).trim().toLowerCase(),
     safeStr(r.tim).trim().toLowerCase(),
     safeStr(r.periode).trim().toLowerCase(),
@@ -65,6 +66,7 @@ const fingerprintKey = (r: BudgetRecord) => {
     safeStr(r.saNo).trim().toLowerCase(),
     safeStr(r.keterangan).trim().toLowerCase(),
   ];
+  const parts = projectId === 'SPHR01031A' ? fields : [projectId, ...fields];
   return parts.join('|');
 };
 
@@ -192,6 +194,7 @@ export const uploadBudgetRecordsToTiDB = async (records: BudgetRecord[]) => {
         clientReceived: records.length,
         clientSentUnique: unique.length,
         clientSkippedDuplicates: skippedDuplicates,
+        note: records.length > 0 ? `Proyek ${records[0].projectId || 'SPHR01031A'}` : undefined,
       },
     }),
   });

@@ -1,18 +1,19 @@
 
 import React, { useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { BudgetRecord } from '../types';
+import { BudgetRecord, ProjectId } from '../types';
 import { STATUS_COLS } from '../constants';
 
 interface ExcelImportProps {
   onImport: (data: BudgetRecord[]) => void;
+  projectId?: ProjectId;
   /** Optional: override button class for consistent styling in navbar/dropdowns */
   buttonClassName?: string;
   /** Optional: override button label */
   label?: string;
 }
 
-const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, buttonClassName, label }) => {
+const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01031A', buttonClassName, label }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
@@ -353,6 +354,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, buttonClassName, la
 
             mappedData.push({
               id: `excel-${Date.now()}-${rIdx}`,
+              projectId,
               status: (String(statusRaw ?? '').trim() || 'On Progress') as BudgetRecord['status'],
               namaUser: String(namaUserRaw ?? 'Unknown').trim(),
               tim: String(timRaw ?? 'No Team').trim(),
@@ -452,6 +454,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, buttonClassName, la
 
             return {
               id: `excel-${Date.now()}-${index}`,
+              projectId,
               status: status as BudgetRecord['status'],
               namaUser: String(namaUser).trim(),
               tim: String(tim).trim(),
