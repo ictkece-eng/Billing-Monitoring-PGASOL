@@ -54,6 +54,9 @@ const createEmptyDraft = (period: string): EntryDraft => ({
 const formatCurrency = (amount: number) =>
   `Rp ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(amount || 0)}`;
 
+const includeInSummaryRo = (entry: Sphr01300aBillingEntry) =>
+  !/^FOD\b/i.test(entry.area.trim());
+
 const formatPeriod = (period: string) => {
   const [year, month] = period.split('-').map(Number);
   if (!year || month < 1 || month > 12) return period;
@@ -73,6 +76,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,15 +99,23 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
   }, [period]);
 
   const totals = useMemo(
-    () => entries.reduce(
-      (sum, entry) => ({
-        ro: sum.ro + entry.nilaiRo,
-        actual: sum.actual + entry.nilaiActual,
-        remaining: sum.remaining + entry.nilaiRo - entry.nilaiActual,
-        sa: sum.sa + entry.nilaiSa,
-      }),
-      { ro: 0, actual: 0, remaining: 0, sa: 0 }
-    ),
+    () => {
+      const summaryRoEntries = entries.filter(includeInSummaryRo);
+      const sums = entries.reduce(
+        (sum, entry) => ({
+          actual: sum.actual + entry.nilaiActual,
+          sa: sum.sa + entry.nilaiSa,
+        }),
+        { actual: 0, sa: 0 }
+      );
+      const ro = summaryRoEntries.reduce((sum, entry) => sum + entry.nilaiRo, 0);
+      return {
+        ...sums,
+        ro,
+        remaining: ro - sums.actual,
+        excludedRoRows: entries.length - summaryRoEntries.length,
+      };
+    },
     [entries]
   );
 
@@ -161,7 +173,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
   };
 
   return (
-    <section className="sphr-billing-page">
+    <section className={`sphr-billing-page${expanded ? ' sphr-billing-page--expanded' : ''}`}>
       <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
           <div className="small text-primary fw-bold text-uppercase">Proyek SPHR01300A</div>
@@ -202,6 +214,9 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
           </div>
         ))}
       </div>
+      <p className="small text-muted mb-3">
+        Total Nilai RO mengikuti ringkasan workbook dan tidak memasukkan baris area FOD; semua baris tetap disimpan dan ditampilkan. Remaining ringkasan dihitung dari Total Nilai RO dikurangi Total Nilai Actual.
+      </p>
 
       <div className="card shadow-sm border-0">
         <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
@@ -215,6 +230,16 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
               Tambah Baris
             </button>
           )}
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => setExpanded(value => !value)}
+            aria-pressed={expanded}
+            title={expanded ? 'Kembalikan tabel ke ukuran normal' : 'Perlebar area tabel ke layar penuh'}
+          >
+            <i className={`bi ${expanded ? 'bi-fullscreen-exit' : 'bi-arrows-fullscreen'} me-2`} aria-hidden="true" />
+            {expanded ? 'Tutup Layar Penuh' : 'Perlebar Tabel'}
+          </button>
         </div>
         {error && <div className="alert alert-danger rounded-0 mb-0" role="alert">{error}</div>}
         {loading ? (

@@ -146,18 +146,43 @@ html {
 }
 
 .sphr-billing-table {
-  min-width: 1550px;
-  font-size: 12px;
+  width: 100%;
+  min-width: 1420px;
+  table-layout: fixed;
+  font-size: 10px;
 }
 
 .sphr-billing-table th {
-  min-width: 92px;
   vertical-align: middle;
+  overflow-wrap: anywhere;
+  padding: 6px 4px;
 }
 
-.sphr-billing-table th:first-child,
-.sphr-billing-table th:nth-child(2) {
-  min-width: 130px;
+.sphr-billing-table td {
+  padding: 6px 5px;
+}
+
+.sphr-billing-table th:nth-child(n + 7):nth-child(-n + 13) {
+  width: 4.6%;
+}
+
+.sphr-billing-table-wrap {
+  overflow: auto;
+}
+
+.sphr-billing-page--expanded {
+  position: fixed;
+  inset: 10px;
+  z-index: 1060;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--bs-body-bg, #fff);
+  box-shadow: 0 12px 48px rgba(15, 23, 42, 0.28);
+}
+
+.sphr-billing-page--expanded .sphr-billing-table-wrap {
+  max-height: calc(100vh - 300px);
 }
 
 /* Micro-interactions (opt-in) */
