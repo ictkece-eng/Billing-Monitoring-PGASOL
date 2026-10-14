@@ -4,6 +4,7 @@ type EntriesResponse = {
   ok: boolean;
   entries?: Sphr01300aBillingEntry[];
   entry?: Sphr01300aBillingEntry;
+  deleted?: number;
   error?: string;
 };
 
@@ -42,4 +43,12 @@ export const updateSphr01300aEntry = async (id: string, entry: Omit<Sphr01300aBi
 
 export const deleteSphr01300aEntry = async (id: string) => {
   await request('DELETE', { id });
+};
+
+export const deleteSphr01300aEntriesByPeriod = async (period: string) => {
+  const result = await request('DELETE', { period });
+  if (typeof result.deleted !== 'number') {
+    throw new Error('Server tidak mengembalikan jumlah data periode yang dihapus');
+  }
+  return result.deleted;
 };

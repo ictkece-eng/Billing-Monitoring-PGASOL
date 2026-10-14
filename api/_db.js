@@ -63,6 +63,7 @@ export const ensureSphr01300aBillingTable = async (pool) => {
       no_ro_spk VARCHAR(128) NULL,
       nilai_ro BIGINT NOT NULL DEFAULT 0,
       nilai_actual BIGINT NOT NULL DEFAULT 0,
+      nilai_remaining BIGINT NULL,
       tanggal_submit_bast VARCHAR(32) NULL,
       bast_draft_vendor TINYINT(1) NOT NULL DEFAULT 0,
       bast_request_vendor TINYINT(1) NOT NULL DEFAULT 0,
@@ -79,6 +80,19 @@ export const ensureSphr01300aBillingTable = async (pool) => {
       KEY idx_sphr01300a_period (period)
     )
   `);
+  const [remainingColumns] = await pool.query(
+    "SHOW COLUMNS FROM sphr01300a_billing_entries LIKE 'nilai_remaining'"
+  );
+  if (!remainingColumns.length) {
+    try {
+      await pool.query('ALTER TABLE sphr01300a_billing_entries ADD COLUMN nilai_remaining BIGINT NULL');
+    } catch (error) {
+      if (error?.code !== 'ER_DUP_FIELDNAME' && error?.errno !== 1060) throw error;
+    }
+  }
+  await pool.query(
+    'UPDATE sphr01300a_billing_entries SET nilai_remaining = nilai_ro - nilai_actual WHERE nilai_remaining IS NULL'
+  );
   _sphr01300aSchemaEnsured = true;
 };
 

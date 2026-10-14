@@ -9,6 +9,7 @@ export interface Sphr01300aBillingEntry {
   noRoSpk: string;
   nilaiRo: number;
   nilaiActual: number;
+  nilaiRemaining: number;
   tanggalSubmitBast: string;
   bastDraftVendor: boolean;
   bastRequestVendor: boolean;

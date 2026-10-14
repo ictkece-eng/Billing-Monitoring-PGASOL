@@ -24,18 +24,27 @@ const readAmount = (value, field) => {
   return amount;
 };
 
+const readRemaining = (value, fallback) => {
+  const amount = value === '' || value === undefined || value === null ? fallback : Number(value);
+  if (!Number.isSafeInteger(amount)) throw new Error('Remaining RO - Actual harus bilangan bulat');
+  return amount;
+};
+
 const readBoolean = (value) => value === true || value === 1 || value === '1';
 
 const normalizeEntry = (raw) => {
   const period = String(raw?.period || '').trim();
   if (!PERIOD_PATTERN.test(period)) throw new Error('Periode harus berformat YYYY-MM');
+  const nilaiRo = readAmount(raw?.nilaiRo, 'Nilai RO');
+  const nilaiActual = readAmount(raw?.nilaiActual, 'Nilai Actual');
   return {
     period,
     pic: readText(raw?.pic, 'PIC', true),
     area: readText(raw?.area, 'Area', true),
     noRoSpk: readText(raw?.noRoSpk, 'No RO/SPK'),
-    nilaiRo: readAmount(raw?.nilaiRo, 'Nilai RO'),
-    nilaiActual: readAmount(raw?.nilaiActual, 'Nilai Actual'),
+    nilaiRo,
+    nilaiActual,
+    nilaiRemaining: readRemaining(raw?.nilaiRemaining, nilaiRo - nilaiActual),
     tanggalSubmitBast: readText(raw?.tanggalSubmitBast, 'Tanggal Submit BAST'),
     bastDraftVendor: readBoolean(raw?.bastDraftVendor),
     bastRequestVendor: readBoolean(raw?.bastRequestVendor),
@@ -57,6 +66,7 @@ const toApiEntry = (row) => ({
   noRoSpk: String(row.noRoSpk || ''),
   nilaiRo: Number(row.nilaiRo),
   nilaiActual: Number(row.nilaiActual),
+  nilaiRemaining: Number(row.nilaiRemaining),
   tanggalSubmitBast: String(row.tanggalSubmitBast || ''),
   bastDraftVendor: Boolean(Number(row.bastDraftVendor)),
   bastRequestVendor: Boolean(Number(row.bastRequestVendor)),
@@ -85,6 +95,7 @@ export default async function handler(req, res) {
         `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
                 CAST(nilai_ro AS SIGNED) AS nilaiRo,
                 CAST(nilai_actual AS SIGNED) AS nilaiActual,
+                CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
                 tanggal_submit_bast AS tanggalSubmitBast,
                 bast_draft_vendor AS bastDraftVendor,
                 bast_request_vendor AS bastRequestVendor,
@@ -115,7 +126,7 @@ export default async function handler(req, res) {
         return;
       }
       const values = [
-        entry.period, entry.pic, entry.area, entry.noRoSpk, entry.nilaiRo, entry.nilaiActual,
+        entry.period, entry.pic, entry.area, entry.noRoSpk, entry.nilaiRo, entry.nilaiActual, entry.nilaiRemaining,
         entry.tanggalSubmitBast, Number(entry.bastDraftVendor), Number(entry.bastRequestVendor),
         Number(entry.bastReviewReviewer1), Number(entry.bastApprovalApprover),
         Number(entry.bastReconfirmVendor), Number(entry.saGrSubmission),
@@ -124,16 +135,16 @@ export default async function handler(req, res) {
       if (req.method === 'POST') {
         await pool.query(
           `INSERT INTO sphr01300a_billing_entries (
-             id, period, pic, area, no_ro_spk, nilai_ro, nilai_actual, tanggal_submit_bast,
+             id, period, pic, area, no_ro_spk, nilai_ro, nilai_actual, nilai_remaining, tanggal_submit_bast,
              bast_draft_vendor, bast_request_vendor, bast_review_reviewer1, bast_approval_approver,
              bast_reconfirm_vendor, sa_gr_submission, bast_final_validation, no_sa, nilai_sa
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [id, ...values]
         );
       } else {
         const [result] = await pool.query(
           `UPDATE sphr01300a_billing_entries
-              SET period = ?, pic = ?, area = ?, no_ro_spk = ?, nilai_ro = ?, nilai_actual = ?,
+              SET period = ?, pic = ?, area = ?, no_ro_spk = ?, nilai_ro = ?, nilai_actual = ?, nilai_remaining = ?,
                   tanggal_submit_bast = ?, bast_draft_vendor = ?, bast_request_vendor = ?,
                   bast_review_reviewer1 = ?, bast_approval_approver = ?, bast_reconfirm_vendor = ?,
                   sa_gr_submission = ?, bast_final_validation = ?, no_sa = ?, nilai_sa = ?
@@ -156,6 +167,22 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
+      const period = String(body?.period || '').trim();
+      if (period) {
+        if (!PERIOD_PATTERN.test(period)) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, error: 'Periode harus berformat YYYY-MM' }));
+          return;
+        }
+        const [result] = await pool.query(
+          'DELETE FROM sphr01300a_billing_entries WHERE period = ?',
+          [period]
+        );
+        res.setHeader('Content-Type', 'application/json');
+        res.statusCode = 200;
+        res.end(JSON.stringify({ ok: true, deleted: Number(result?.affectedRows || 0) }));
+        return;
+      }
       const id = String(body?.id || '').trim();
       if (!id || id.length > 36) {
         res.statusCode = 400;

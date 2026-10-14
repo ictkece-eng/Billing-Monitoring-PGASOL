@@ -244,7 +244,9 @@ html {
 
 .sphr-billing-table-wrap {
   overflow: auto;
-  width: 100%;
+  width: 96%;
+  max-width: 2540px;
+  margin-inline: auto;
 }
 
 .sphr-billing-page--expanded {

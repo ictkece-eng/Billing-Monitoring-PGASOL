@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS sphr01300a_billing_entries (
   no_ro_spk VARCHAR(128) NULL,
   nilai_ro BIGINT NOT NULL DEFAULT 0,
   nilai_actual BIGINT NOT NULL DEFAULT 0,
+  nilai_remaining BIGINT NULL,
   tanggal_submit_bast VARCHAR(32) NULL,
   bast_draft_vendor TINYINT(1) NOT NULL DEFAULT 0,
   bast_request_vendor TINYINT(1) NOT NULL DEFAULT 0,

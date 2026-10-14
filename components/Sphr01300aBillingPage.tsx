@@ -3,6 +3,7 @@ import type { Sphr01300aBillingEntry } from '../types';
 import {
   createSphr01300aEntry,
   deleteSphr01300aEntry,
+  deleteSphr01300aEntriesByPeriod,
   fetchSphr01300aEntries,
   updateSphr01300aEntry,
 } from '../services/sphr01300aService';
@@ -41,6 +42,7 @@ const createEmptyDraft = (period: string): EntryDraft => ({
   noRoSpk: '',
   nilaiRo: 0,
   nilaiActual: 0,
+  nilaiRemaining: 0,
   tanggalSubmitBast: '',
   bastDraftVendor: false,
   bastRequestVendor: false,
@@ -53,8 +55,11 @@ const createEmptyDraft = (period: string): EntryDraft => ({
   nilaiSa: 0,
 });
 
-const formatCurrency = (amount: number) =>
-  `Rp ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(amount || 0)}`;
+const formatCurrency = (amount: number) => {
+  const value = amount || 0;
+  const sign = value < 0 ? '-Rp ' : 'Rp ';
+  return `${sign}${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.abs(value))}`;
+};
 
 const includeInSummaryRo = (entry: Sphr01300aBillingEntry) =>
   !/^FOD\b/i.test(entry.area.trim());
@@ -75,6 +80,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
   const [entries, setEntries] = useState<Sphr01300aBillingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingPeriod, setDeletingPeriod] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -170,8 +176,34 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
     }
   };
 
+  const removePeriodEntries = async () => {
+    if (deletingPeriod || entries.length === 0) return;
+    const periodLabel = formatPeriod(period);
+    if (!window.confirm(`Hapus semua ${entries.length} data billing periode ${periodLabel}? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setDeletingPeriod(true);
+    setError(null);
+    try {
+      await deleteSphr01300aEntriesByPeriod(period);
+      setEntries([]);
+    } catch (reason) {
+      setError(String(reason?.message || reason));
+    } finally {
+      setDeletingPeriod(false);
+    }
+  };
+
   const updateDraft = <K extends keyof EntryDraft>(key: K, value: EntryDraft[K]) => {
-    setDraft(previous => previous ? { ...previous, [key]: value } : previous);
+    setDraft(previous => {
+      if (!previous) return previous;
+      const next = { ...previous, [key]: value };
+      if (
+        (key === 'nilaiRo' || key === 'nilaiActual') &&
+        previous.nilaiRemaining === previous.nilaiRo - previous.nilaiActual
+      ) {
+        next.nilaiRemaining = next.nilaiRo - next.nilaiActual;
+      }
+      return next;
+    });
   };
 
   return (
@@ -190,6 +222,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
               type="month"
               className="form-control"
               value={period}
+              disabled={deletingPeriod}
               onChange={event => setPeriod(event.target.value)}
             />
           </div>
@@ -227,9 +260,20 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
             <div className="small text-muted">{entries.length} baris input</div>
           </div>
           {canEdit && (
-            <button type="button" className="btn btn-primary" onClick={openCreate} disabled={loading}>
+            <button type="button" className="btn btn-primary" onClick={openCreate} disabled={loading || deletingPeriod}>
               <i className="bi bi-plus-lg me-2" aria-hidden="true" />
               Tambah Baris
+            </button>
+          )}
+          {canEdit && entries.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-outline-danger"
+              onClick={() => void removePeriodEntries()}
+              disabled={loading || deletingPeriod}
+            >
+              <i className="bi bi-trash me-2" aria-hidden="true" />
+              {deletingPeriod ? 'Menghapus Periode...' : 'Hapus Semua Bulan Ini'}
             </button>
           )}
           <button
@@ -293,7 +337,9 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                     <td>{entry.noRoSpk}</td>
                     <td className="text-end text-nowrap">{formatCurrency(entry.nilaiRo)}</td>
                     <td className="text-end text-nowrap">{formatCurrency(entry.nilaiActual)}</td>
-                    <td className="text-end text-nowrap">{formatCurrency(entry.nilaiRo - entry.nilaiActual)}</td>
+                    <td className={`text-end text-nowrap${entry.nilaiRemaining < 0 ? ' text-danger fw-bold' : ''}`}>
+                      {formatCurrency(entry.nilaiRemaining)}
+                    </td>
                     <td className="text-center text-nowrap">{entry.tanggalSubmitBast}</td>
                     {STATUS_FIELDS.map(field => (
                       <td className="text-center" key={field.key}>
@@ -304,10 +350,10 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                     <td className="text-end text-nowrap">{formatCurrency(entry.nilaiSa)}</td>
                     {canEdit && (
                       <td className="text-nowrap">
-                        <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => openEdit(entry)} aria-label={`Edit baris ${index + 1}`}>
+                        <button type="button" className="btn btn-sm btn-outline-primary me-1" onClick={() => openEdit(entry)} disabled={deletingPeriod} aria-label={`Edit baris ${index + 1}`}>
                           <i className="bi bi-pencil" aria-hidden="true" />
                         </button>
-                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => void removeEntry(entry)} aria-label={`Hapus baris ${index + 1}`}>
+                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => void removeEntry(entry)} disabled={deletingPeriod} aria-label={`Hapus baris ${index + 1}`}>
                           <i className="bi bi-trash" aria-hidden="true" />
                         </button>
                       </td>
@@ -364,6 +410,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                         { key: 'noRoSpk', label: 'No RO/SPK' },
                         { key: 'nilaiRo', label: 'Nilai RO', amount: true },
                         { key: 'nilaiActual', label: 'Nilai Actual', amount: true },
+                        { key: 'nilaiRemaining', label: 'Remaining RO - Actual', amount: true, allowNegative: true },
                         { key: 'tanggalSubmitBast', label: 'Tanggal Submit BAST', date: true },
                         { key: 'noSa', label: 'No SA' },
                         { key: 'nilaiSa', label: 'Nilai SA', amount: true },
@@ -374,7 +421,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                             id={`sphr-${field.key}`}
                             className="form-control"
                             type={'date' in field ? 'date' : 'amount' in field ? 'number' : 'text'}
-                            min={'amount' in field ? 0 : undefined}
+                            min={'amount' in field && !('allowNegative' in field) ? 0 : undefined}
                             step={'amount' in field ? 1 : undefined}
                             required={'required' in field ? field.required : false}
                             value={draft[field.key]}
