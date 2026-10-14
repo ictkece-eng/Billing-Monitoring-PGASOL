@@ -154,18 +154,90 @@ html {
   width: 2390px;
   min-width: 2390px;
   table-layout: fixed;
-  font-size: 12px;
+  font-size: 14px;
+  color: #1f2937;
+  border-color: #b7c7dc;
 }
 
 .sphr-billing-table th {
   vertical-align: middle;
   overflow-wrap: normal;
   word-break: normal;
-  padding: 6px 4px;
+  padding: 10px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid #9fb2ca;
+}
+
+.sphr-billing-table thead tr:first-child th {
+  background: #173b68;
+  color: #fff;
+  font-weight: 700;
+}
+
+.sphr-billing-table thead tr:nth-child(2) th {
+  background: #dce9f8;
+  color: #173b68;
+  font-weight: 700;
 }
 
 .sphr-billing-table td {
-  padding: 6px 5px;
+  padding: 9px 8px;
+  border: 1px solid #d2dce8;
+  line-height: 1.45;
+}
+
+.sphr-billing-table tbody tr:nth-child(even) td {
+  background: #f1f6fc;
+}
+
+.sphr-billing-table tbody tr:hover td {
+  background: #e0efff;
+}
+
+.sphr-billing-table tbody input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.sphr-billing-table tfoot td {
+  padding: 11px 8px;
+  background: #dce9f8;
+  color: #173b68;
+  border: 1px solid #9fb2ca;
+}
+
+:root[data-theme="dark"] .sphr-billing-table {
+  color: #e5edf8;
+  border-color: #475569;
+}
+
+:root[data-theme="dark"] .sphr-billing-table thead tr:first-child th {
+  background: #122b49;
+  color: #f8fafc;
+  border-color: #526782;
+}
+
+:root[data-theme="dark"] .sphr-billing-table thead tr:nth-child(2) th,
+:root[data-theme="dark"] .sphr-billing-table tfoot td {
+  background: #243d5c;
+  color: #e5edf8;
+  border-color: #526782;
+}
+
+:root[data-theme="dark"] .sphr-billing-table td {
+  background: #172235;
+  color: #e5edf8;
+  border-color: #384b64;
+}
+
+:root[data-theme="dark"] .sphr-billing-table tbody tr:nth-child(even) td {
+  background: #1d2c42;
+}
+
+:root[data-theme="dark"] .sphr-billing-table tbody tr:hover td {
+  background: #293d58;
 }
 
 .sphr-billing-table-wrap {
