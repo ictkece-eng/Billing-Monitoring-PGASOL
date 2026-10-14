@@ -50,6 +50,37 @@ let _pool = null;
 
 let _schemaEnsured = false;
 let _historySchemaEnsured = false;
+let _sphr01300aSchemaEnsured = false;
+
+export const ensureSphr01300aBillingTable = async (pool) => {
+  if (_sphr01300aSchemaEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sphr01300a_billing_entries (
+      id VARCHAR(36) NOT NULL,
+      period CHAR(7) NOT NULL,
+      pic VARCHAR(255) NOT NULL,
+      area VARCHAR(255) NOT NULL,
+      no_ro_spk VARCHAR(128) NULL,
+      nilai_ro BIGINT NOT NULL DEFAULT 0,
+      nilai_actual BIGINT NOT NULL DEFAULT 0,
+      tanggal_submit_bast VARCHAR(32) NULL,
+      bast_draft_vendor TINYINT(1) NOT NULL DEFAULT 0,
+      bast_request_vendor TINYINT(1) NOT NULL DEFAULT 0,
+      bast_review_reviewer1 TINYINT(1) NOT NULL DEFAULT 0,
+      bast_approval_approver TINYINT(1) NOT NULL DEFAULT 0,
+      bast_reconfirm_vendor TINYINT(1) NOT NULL DEFAULT 0,
+      sa_gr_submission TINYINT(1) NOT NULL DEFAULT 0,
+      bast_final_validation TINYINT(1) NOT NULL DEFAULT 0,
+      no_sa VARCHAR(128) NULL,
+      nilai_sa BIGINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_sphr01300a_period (period)
+    )
+  `);
+  _sphr01300aSchemaEnsured = true;
+};
 
 export const ensureBudgetRecordsTable = async (pool) => {
   if (_schemaEnsured) return;

@@ -12,6 +12,7 @@ import { getBudgetInsights } from './services/geminiService';
 import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
 import NotaPembatalanMenu from './components/NotaPembatalanMenu';
 import ImportNotaPajak from './components/ImportNotaPajak';
+import Sphr01300aBillingPage from './components/Sphr01300aBillingPage';
 import { ocrImageToText } from './services/ocrService';
 import { parseNotaPajakToPembatalan, NotaPembatalanData } from './services/notaPembatalanParser';
 import { exportNotaPembatalanToPDF } from './services/notaPembatalanExport';
@@ -177,7 +178,7 @@ const App: React.FC = () => {
   const [filterMonth, setFilterMonth] = useState<string>(ALL_MONTH_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const [activePage, setActivePage] = useState<'home' | 'tables'>('home');
+  const [activePage, setActivePage] = useState<'home' | 'tables' | 'sphr01300a'>('home');
   const [activeTab, setActiveTab] = useState<'dashboard'>('dashboard');
   const [activeTableTab, setActiveTableTab] = useState<'pivot' | 'raw'>('pivot');
   const [isInputOpen, setIsInputOpen] = useState(false);
@@ -289,12 +290,23 @@ const App: React.FC = () => {
     if (activePage === 'home') {
       parts.push('Beranda');
       parts.push('Visualisasi');
+    } else if (activePage === 'sphr01300a') {
+      parts.push('SPHR01300A');
+      parts.push('Monitoring Billing');
     } else {
       parts.push('Tabel Excel');
       parts.push(activeTableTab === 'pivot' ? 'Pivot Rekap' : 'Database Transaksi');
     }
     return parts;
   }, [activePage, activeTableTab]);
+
+  const selectProject = (projectId: ProjectId) => {
+    setSelectedProjectId(projectId);
+    setFilterYear(ALL_YEAR_VALUE);
+    setFilterMonth(ALL_MONTH_VALUE);
+    setAiInsight(null);
+    if (projectId !== 'SPHR01300A' && activePage === 'sphr01300a') setActivePage('home');
+  };
 
   // Apply theme to document root (CSS hooks via [data-theme]).
   useEffect(() => {
@@ -1765,6 +1777,14 @@ const App: React.FC = () => {
                       >
                         Tabel Excel
                       </button>
+                      {selectedProjectId === 'SPHR01300A' && (
+                        <button
+                          onClick={() => setActivePage('sphr01300a')}
+                          className={`btn btn-sm ${activePage === 'sphr01300a' ? 'btn-primary' : 'btn-outline-primary'} micro-hover`}
+                        >
+                          Monitoring Billing
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -1925,32 +1945,36 @@ const App: React.FC = () => {
           </header>
 
       <main className="container py-4">
+        {activePage === 'sphr01300a' ? (
+          <Sphr01300aBillingPage canEdit={toolsUnlocked} onBack={() => setActivePage('home')} />
+        ) : (
+        <>
         <div className="row g-3 mb-4" aria-label="Ringkasan proyek">
           {projectSummaries.map(project => (
             <div key={project.id} className="col-12 col-md-6">
               <button
                 type="button"
                 className={`card w-100 h-100 text-start shadow-sm ${selectedProjectId === project.id ? 'border-primary border-2' : 'border-0'}`}
-                onClick={() => {
-                  setSelectedProjectId(project.id);
-                  setFilterYear(ALL_YEAR_VALUE);
-                  setFilterMonth(ALL_MONTH_VALUE);
-                  setAiInsight(null);
-                }}
+                onClick={() => selectProject(project.id)}
                 aria-pressed={selectedProjectId === project.id}
               >
                 <span className="card-body d-flex justify-content-between align-items-center gap-3">
                   <span>
                     <span className="d-block fw-bold">{project.label}</span>
-                    <span className="small text-muted">
-                      {project.recordCount} transaksi
-                      {project.contractValue === null ? ' · Pagu belum ditetapkan' : ` · Pagu ${formatCurrency(project.contractValue)}`}
+                    {project.id === 'SPHR01300A' ? (
+                      <span className="small text-muted">Input billing manual per periode</span>
+                    ) : (
+                      <span className="small text-muted">
+                        {project.recordCount} transaksi · Pagu {formatCurrency(project.contractValue || 0)}
+                      </span>
+                    )}
+                  </span>
+                  {project.id === 'SPHR01031A' && (
+                    <span className="text-end">
+                      <span className="d-block small text-muted">Terserap</span>
+                      <span className="fw-bold text-nowrap">{formatCurrency(project.absorbed)}</span>
                     </span>
-                  </span>
-                  <span className="text-end">
-                    <span className="d-block small text-muted">Terserap</span>
-                    <span className="fw-bold text-nowrap">{formatCurrency(project.absorbed)}</span>
-                  </span>
+                  )}
                 </span>
               </button>
             </div>
@@ -1969,12 +1993,7 @@ const App: React.FC = () => {
                       value={selectedProjectId}
                       onChange={(e) => {
                         const project = PROJECTS.find(item => item.id === e.target.value);
-                        if (!project) return;
-                        const projectId = project.id;
-                        setSelectedProjectId(projectId);
-                        setFilterYear(ALL_YEAR_VALUE);
-                        setFilterMonth(ALL_MONTH_VALUE);
-                        setAiInsight(null);
+                        if (project) selectProject(project.id);
                       }}
                       className="form-select"
                     >
@@ -2666,6 +2685,8 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+        </>
         )}
       </main>
 

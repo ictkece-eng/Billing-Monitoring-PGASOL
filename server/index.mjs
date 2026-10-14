@@ -24,6 +24,7 @@ const pool = createPool();
 
 let schemaEnsured = false;
 let historySchemaEnsured = false;
+let sphr01300aSchemaEnsured = false;
 const ensureBudgetRecordsTable = async () => {
   if (schemaEnsured) return;
   await pool.query(`
@@ -87,6 +88,72 @@ const ensureUploadHistoryTables = async () => {
   `);
 
   historySchemaEnsured = true;
+};
+
+const ensureSphr01300aBillingTable = async () => {
+  if (sphr01300aSchemaEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sphr01300a_billing_entries (
+      id VARCHAR(36) NOT NULL,
+      period CHAR(7) NOT NULL,
+      pic VARCHAR(255) NOT NULL,
+      area VARCHAR(255) NOT NULL,
+      no_ro_spk VARCHAR(128) NULL,
+      nilai_ro BIGINT NOT NULL DEFAULT 0,
+      nilai_actual BIGINT NOT NULL DEFAULT 0,
+      tanggal_submit_bast VARCHAR(32) NULL,
+      bast_draft_vendor TINYINT(1) NOT NULL DEFAULT 0,
+      bast_request_vendor TINYINT(1) NOT NULL DEFAULT 0,
+      bast_review_reviewer1 TINYINT(1) NOT NULL DEFAULT 0,
+      bast_approval_approver TINYINT(1) NOT NULL DEFAULT 0,
+      bast_reconfirm_vendor TINYINT(1) NOT NULL DEFAULT 0,
+      sa_gr_submission TINYINT(1) NOT NULL DEFAULT 0,
+      bast_final_validation TINYINT(1) NOT NULL DEFAULT 0,
+      no_sa VARCHAR(128) NULL,
+      nilai_sa BIGINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_sphr01300a_period (period)
+    )
+  `);
+  sphr01300aSchemaEnsured = true;
+};
+
+const sphrPeriodPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+const normalizeSphrEntry = (raw) => {
+  const period = String(raw?.period || '').trim();
+  if (!sphrPeriodPattern.test(period)) throw new Error('Periode harus berformat YYYY-MM');
+  const text = (value, field, maxLength, required = false) => {
+    const result = value === undefined || value === null ? '' : String(value).trim();
+    if (required && !result) throw new Error(`${field} wajib diisi`);
+    if (result.length > maxLength) throw new Error(`${field} maksimal ${maxLength} karakter`);
+    return result;
+  };
+  const amount = (value, field) => {
+    const result = value === '' || value === undefined || value === null ? 0 : Number(value);
+    if (!Number.isSafeInteger(result) || result < 0) throw new Error(`${field} harus bilangan bulat positif atau nol`);
+    return result;
+  };
+  const bool = (value) => value === true || value === 1 || value === '1';
+  return {
+    period,
+    pic: text(raw?.pic, 'PIC', 255, true),
+    area: text(raw?.area, 'Area', 255, true),
+    noRoSpk: text(raw?.noRoSpk, 'No RO/SPK', 128),
+    nilaiRo: amount(raw?.nilaiRo, 'Nilai RO'),
+    nilaiActual: amount(raw?.nilaiActual, 'Nilai Actual'),
+    tanggalSubmitBast: text(raw?.tanggalSubmitBast, 'Tanggal Submit BAST', 32),
+    bastDraftVendor: bool(raw?.bastDraftVendor),
+    bastRequestVendor: bool(raw?.bastRequestVendor),
+    bastReviewReviewer1: bool(raw?.bastReviewReviewer1),
+    bastApprovalApprover: bool(raw?.bastApprovalApprover),
+    bastReconfirmVendor: bool(raw?.bastReconfirmVendor),
+    saGrSubmission: bool(raw?.saGrSubmission),
+    bastFinalValidation: bool(raw?.bastFinalValidation),
+    noSa: text(raw?.noSa, 'No SA', 128),
+    nilaiSa: amount(raw?.nilaiSa, 'Nilai SA'),
+  };
 };
 
 const safeStr = (v) => (v === undefined || v === null ? '' : String(v));
@@ -194,6 +261,120 @@ app.get('/api/budget-records', async (_req, res) => {
     res.json({ ok: true, records: rows || [] });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+app.all('/api/sphr01300a/entries', async (req, res) => {
+  try {
+    await ensureSphr01300aBillingTable();
+
+    if (req.method === 'GET') {
+      const period = String(req.query?.period || '').trim();
+      if (!sphrPeriodPattern.test(period)) {
+        res.status(400).json({ ok: false, error: 'Periode harus berformat YYYY-MM' });
+        return;
+      }
+      const [rows] = await pool.query(
+        `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
+                CAST(nilai_ro AS SIGNED) AS nilaiRo,
+                CAST(nilai_actual AS SIGNED) AS nilaiActual,
+                tanggal_submit_bast AS tanggalSubmitBast,
+                bast_draft_vendor AS bastDraftVendor,
+                bast_request_vendor AS bastRequestVendor,
+                bast_review_reviewer1 AS bastReviewReviewer1,
+                bast_approval_approver AS bastApprovalApprover,
+                bast_reconfirm_vendor AS bastReconfirmVendor,
+                sa_gr_submission AS saGrSubmission,
+                bast_final_validation AS bastFinalValidation,
+                no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
+           FROM sphr01300a_billing_entries WHERE period = ? ORDER BY area, pic, id`,
+        [period]
+      );
+      res.json({
+        ok: true,
+        entries: (rows || []).map(row => ({
+          ...row,
+          id: String(row.id),
+          nilaiRo: Number(row.nilaiRo),
+          nilaiActual: Number(row.nilaiActual),
+          nilaiSa: Number(row.nilaiSa),
+          bastDraftVendor: Boolean(Number(row.bastDraftVendor)),
+          bastRequestVendor: Boolean(Number(row.bastRequestVendor)),
+          bastReviewReviewer1: Boolean(Number(row.bastReviewReviewer1)),
+          bastApprovalApprover: Boolean(Number(row.bastApprovalApprover)),
+          bastReconfirmVendor: Boolean(Number(row.bastReconfirmVendor)),
+          saGrSubmission: Boolean(Number(row.saGrSubmission)),
+          bastFinalValidation: Boolean(Number(row.bastFinalValidation)),
+        })),
+      });
+      return;
+    }
+
+    if (!['POST', 'PUT', 'DELETE'].includes(req.method)) {
+      res.set('Allow', 'GET, POST, PUT, DELETE').status(405).send('Method Not Allowed');
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      const id = String(req.body?.id || '').trim();
+      if (!id || id.length > 36) {
+        res.status(400).json({ ok: false, error: 'id tidak valid' });
+        return;
+      }
+      const [result] = await pool.query('DELETE FROM sphr01300a_billing_entries WHERE id = ?', [id]);
+      if (Number(result?.affectedRows || 0) === 0) {
+        res.status(404).json({ ok: false, error: 'Data tidak ditemukan' });
+        return;
+      }
+      res.json({ ok: true });
+      return;
+    }
+
+    const entry = normalizeSphrEntry(req.body?.entry);
+    const id = req.method === 'POST' ? crypto.randomUUID() : String(req.body?.id || '').trim();
+    if (!id || id.length > 36) {
+      res.status(400).json({ ok: false, error: 'id tidak valid' });
+      return;
+    }
+    const values = [
+      entry.period, entry.pic, entry.area, entry.noRoSpk, entry.nilaiRo, entry.nilaiActual,
+      entry.tanggalSubmitBast, Number(entry.bastDraftVendor), Number(entry.bastRequestVendor),
+      Number(entry.bastReviewReviewer1), Number(entry.bastApprovalApprover),
+      Number(entry.bastReconfirmVendor), Number(entry.saGrSubmission),
+      Number(entry.bastFinalValidation), entry.noSa, entry.nilaiSa,
+    ];
+    if (req.method === 'POST') {
+      await pool.query(
+        `INSERT INTO sphr01300a_billing_entries (
+           id, period, pic, area, no_ro_spk, nilai_ro, nilai_actual, tanggal_submit_bast,
+           bast_draft_vendor, bast_request_vendor, bast_review_reviewer1, bast_approval_approver,
+           bast_reconfirm_vendor, sa_gr_submission, bast_final_validation, no_sa, nilai_sa
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, ...values]
+      );
+    } else {
+      const [result] = await pool.query(
+        `UPDATE sphr01300a_billing_entries
+            SET period = ?, pic = ?, area = ?, no_ro_spk = ?, nilai_ro = ?, nilai_actual = ?,
+                tanggal_submit_bast = ?, bast_draft_vendor = ?, bast_request_vendor = ?,
+                bast_review_reviewer1 = ?, bast_approval_approver = ?, bast_reconfirm_vendor = ?,
+                sa_gr_submission = ?, bast_final_validation = ?, no_sa = ?, nilai_sa = ?
+          WHERE id = ?`,
+        [...values, id]
+      );
+      if (Number(result?.affectedRows || 0) === 0) {
+        const [existing] = await pool.query('SELECT id FROM sphr01300a_billing_entries WHERE id = ?', [id]);
+        if (!existing?.length) {
+          res.status(404).json({ ok: false, error: 'Data tidak ditemukan' });
+          return;
+        }
+      }
+    }
+    res.status(req.method === 'POST' ? 201 : 200).json({ ok: true, entry: { id, ...entry } });
+  } catch (error) {
+    const message = String(error?.message || error);
+    const isInputError = /wajib diisi|maksimal|bilangan bulat|Periode harus|id tidak valid/.test(message);
+    res.status(isInputError ? 400 : 500).json({ ok: false, error: message });
   }
 });
 

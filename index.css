@@ -145,6 +145,21 @@ html {
   opacity: 1;
 }
 
+.sphr-billing-table {
+  min-width: 1550px;
+  font-size: 12px;
+}
+
+.sphr-billing-table th {
+  min-width: 92px;
+  vertical-align: middle;
+}
+
+.sphr-billing-table th:first-child,
+.sphr-billing-table th:nth-child(2) {
+  min-width: 130px;
+}
+
 /* Micro-interactions (opt-in) */
 .micro-hover {
   transition: transform 120ms ease, box-shadow 120ms ease;

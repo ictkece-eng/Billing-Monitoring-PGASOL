@@ -1,6 +1,26 @@
 
 export type ProjectId = 'SPHR01031A' | 'SPHR01300A';
 
+export interface Sphr01300aBillingEntry {
+  id: string;
+  period: string;
+  pic: string;
+  area: string;
+  noRoSpk: string;
+  nilaiRo: number;
+  nilaiActual: number;
+  tanggalSubmitBast: string;
+  bastDraftVendor: boolean;
+  bastRequestVendor: boolean;
+  bastReviewReviewer1: boolean;
+  bastApprovalApprover: boolean;
+  bastReconfirmVendor: boolean;
+  saGrSubmission: boolean;
+  bastFinalValidation: boolean;
+  noSa: string;
+  nilaiSa: number;
+}
+
 export interface BudgetRecord {
   id: string;
   projectId?: ProjectId;
