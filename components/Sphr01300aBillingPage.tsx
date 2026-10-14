@@ -80,6 +80,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
   const [entries, setEntries] = useState<Sphr01300aBillingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingStatusIds, setSavingStatusIds] = useState<Set<string>>(() => new Set());
   const [deletingPeriod, setDeletingPeriod] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
@@ -173,6 +174,24 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
       setEntries(previous => previous.filter(row => row.id !== entry.id));
     } catch (reason) {
       setError(String(reason?.message || reason));
+    }
+  };
+
+  const toggleStatus = async (entry: Sphr01300aBillingEntry, field: StatusField, checked: boolean) => {
+    if (!canEdit || deletingPeriod || savingStatusIds.has(entry.id)) return;
+    setSavingStatusIds(previous => new Set(previous).add(entry.id));
+    setError(null);
+    try {
+      const saved = await updateSphr01300aEntry(entry.id, { ...entry, [field]: checked });
+      setEntries(previous => previous.map(row => row.id === saved.id ? saved : row));
+    } catch (reason) {
+      setError(String(reason?.message || reason));
+    } finally {
+      setSavingStatusIds(previous => {
+        const next = new Set(previous);
+        next.delete(entry.id);
+        return next;
+      });
     }
   };
 
@@ -342,7 +361,14 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                     <td className="text-center text-nowrap">{entry.tanggalSubmitBast}</td>
                     {STATUS_FIELDS.map(field => (
                       <td className="text-center" key={field.key}>
-                        <input type="checkbox" checked={entry[field.key]} disabled aria-label={`${field.label}, baris ${index + 1}`} />
+                        <input
+                          type="checkbox"
+                          checked={entry[field.key]}
+                          disabled={!canEdit || deletingPeriod || savingStatusIds.has(entry.id)}
+                          onChange={event => void toggleStatus(entry, field.key, event.target.checked)}
+                          aria-label={`${field.label}, baris ${index + 1}`}
+                          title={canEdit ? 'Klik untuk mengubah status' : 'Masuk Admin untuk mengubah status'}
+                        />
                       </td>
                     ))}
                     <td>{entry.noSa}</td>
