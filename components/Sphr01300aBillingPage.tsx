@@ -247,6 +247,18 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
         ) : (
           <div className="table-responsive sphr-billing-table-wrap">
             <table className="table table-bordered table-sm align-middle mb-0 sphr-billing-table">
+              <colgroup>
+                <col style={{ width: 110 }} />
+                <col style={{ width: 230 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 170 }} />
+                <col style={{ width: 170 }} />
+                <col style={{ width: 170 }} />
+                {STATUS_FIELDS.map(field => <col key={field.key} style={{ width: 140 }} />)}
+                <col style={{ width: 150 }} />
+                <col style={{ width: 170 }} />
+                {canEdit && <col style={{ width: 90 }} />}
+              </colgroup>
               <thead className="table-secondary text-center">
                 <tr>
                   <th rowSpan={2}>PIC</th>
@@ -294,7 +306,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                 ))}
                 {entries.length === 0 && (
                   <tr>
-                    <td colSpan={canEdit ? 17 : 16} className="text-center text-muted py-5">
+                    <td colSpan={canEdit ? 16 : 15} className="text-center text-muted py-5">
                       Belum ada data untuk {formatPeriod(period)}.
                       {canEdit && <span className="d-block mt-1">Klik “Tambah Baris” untuk mulai mengisi.</span>}
                     </td>

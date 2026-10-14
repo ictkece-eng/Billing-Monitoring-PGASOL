@@ -145,16 +145,22 @@ html {
   opacity: 1;
 }
 
+.sphr-billing-page {
+  width: calc(100vw - 48px);
+  margin-left: calc((100% - 100vw + 48px) / 2);
+}
+
 .sphr-billing-table {
-  width: 100%;
-  min-width: 1420px;
+  width: 2390px;
+  min-width: 2390px;
   table-layout: fixed;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sphr-billing-table th {
   vertical-align: middle;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
   padding: 6px 4px;
 }
 
@@ -162,12 +168,9 @@ html {
   padding: 6px 5px;
 }
 
-.sphr-billing-table th:nth-child(n + 7):nth-child(-n + 13) {
-  width: 4.6%;
-}
-
 .sphr-billing-table-wrap {
   overflow: auto;
+  width: 100%;
 }
 
 .sphr-billing-page--expanded {
@@ -175,6 +178,8 @@ html {
   inset: 10px;
   z-index: 1060;
   overflow: auto;
+  width: auto;
+  margin-left: 0;
   padding: 16px;
   border-radius: 12px;
   background: var(--bs-body-bg, #fff);
