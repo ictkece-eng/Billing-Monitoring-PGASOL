@@ -86,6 +86,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [statusFilters, setStatusFilters] = useState<Record<StatusField, boolean>>({ bastDraftVendor: false, bastRequestVendor: false, bastReviewReviewer1: false, bastApprovalApprover: false, bastReconfirmVendor: false, saGrSubmission: false, bastFinalValidation: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -125,8 +126,22 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
         excludedRoRows: entries.length - summaryRoEntries.length,
       };
     },
-    [entries]
+    [entries, statusFilters]
   );
+
+  // Filter entries based on status checkbox filters  const filteredEntries = useMemo(() => {
+    return entries.filter(entry => {
+      // Check each status field against its filter
+      return STATUS_FIELDS.every(field => {
+        const entryValue = entry[field.key];
+        const filterValue = statusFilters[field.key];
+        // If filter is not set (undefined/null), include the entry
+        if (!filterValue) return true;
+        // If filter is set, entry must match
+        return entryValue === filterValue;
+      });
+    });
+  }, [entries, statusFilters]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -251,25 +266,14 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
         </div>
       </div>
 
-      <div className="row g-3 mb-4">
-        {[
+      <div className="row g-3 mb-4">{[
           { label: 'Total Nilai RO', amount: totals.ro, color: 'border-primary' },
           { label: 'Total Nilai Actual', amount: totals.actual, color: 'border-success' },
-          { label: 'Total Nilai SA', amount: totals.sa, color: 'border-info' },
         ].map(item => (
           <div className="col-12 col-sm-6 col-xl-4" key={item.label}>
-            <div className={`card h-100 border-start border-4 ${item.color} shadow-sm`}>
-              <div className="card-body py-3">
-                <div className="small text-muted text-uppercase fw-bold">{item.label}</div>
-                <div className="fs-5 fw-bold mt-1">{formatCurrency(item.amount)}</div>
-              </div>
-            </div>
-          </div>
-        ))}
+            <div className={`card h-100 border-start border-4 ${item.color} shadow-sm`}>              <div className="card-body py-3">                <div className="small text-muted text-uppercase fw-bold">{item.label}</div>                <div className="fs-5 fw-bold mt-1">{formatCurrency(item.amount)}</div>              </div>            </div>          </div>        ))}
       </div>
-      <p className="small text-muted mb-3">
-        Total Nilai RO mengikuti ringkasan workbook dan tidak memasukkan baris area FOD; semua baris tetap disimpan dan ditampilkan. Remaining ringkasan dihitung dari Total Nilai RO dikurangi Total Nilai Actual.
-      </p>
+      <p className="small text-muted mb-3">        Total Nilai RO mengikuti ringkasan workbook dan tidak memasukkan baris area FOD; semua baris tetap disimpan dan ditampilkan. Remaining dihitung dari Total Nilai RO dikurangi Total Nilai Actual.      </p>
 
       <div className="card shadow-sm border-0">
         <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
@@ -348,7 +352,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, index) => (
+                {filteredEntries.map((entry, index) => (
                   <tr key={entry.id}>
                     <td>{entry.pic}</td>
                     <td>{entry.area}</td>
@@ -385,10 +389,10 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
                     )}
                   </tr>
                 ))}
-                {entries.length === 0 && (
+                {filteredEntries.length === 0 && (
                   <tr>
                     <td colSpan={canEdit ? 17 : 16} className="text-center text-muted py-5">
-                      Belum ada data untuk {formatPeriod(period)}.
+                      Belum ada data untuk {formatPeriod(period)} dengan filter yang dipilih.
                       {canEdit && <span className="d-block mt-1">Klik “Tambah Baris” untuk mulai mengisi.</span>}
                     </td>
                   </tr>
