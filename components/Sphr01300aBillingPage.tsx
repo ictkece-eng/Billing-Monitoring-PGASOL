@@ -248,7 +248,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
           <h2 className="h4 fw-bold mb-1">Monitoring Billing Periode</h2>
           <p className="text-muted mb-0">Input manual bulanan mengikuti format monitoring billing.</p>
         </div>
-        <div className="d-flex gap-2 align-items-end">
+        <div className="d-flex gap-2 align-items-end flex-wrap">
           <div>
             <label htmlFor="sphr-period" className="form-label small fw-semibold mb-1">Periode</label>
             <input
@@ -259,6 +259,24 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
               disabled={deletingPeriod}
               onChange={event => setPeriod(event.target.value)}
             />
+          </div>
+          <div className="d-flex gap-2">
+            {STATUS_FIELDS.map(field => (
+              <label key={field.key} className="form-check form-check-inline">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  checked={statusFilters[field.key] || false}
+                  onChange={event => {
+                    setStatusFilters(prev => ({
+                      ...prev,
+                      [field.key]: event.target.checked,
+                    }));
+                  }}
+                  title={`Filter berdasarkan: ${field.label}`}
+                  aria-label={`Filter ${field.label}`}
+                />                <span className="form-check-label small">{field.label}</span>              </label>
+            ))}
           </div>
           <button type="button" className="btn btn-outline-secondary" onClick={onBack}>
             Kembali
