@@ -242,15 +242,23 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
 
   return (
     <section className={`sphr-billing-page${expanded ? ' sphr-billing-page--expanded' : ''}`}>
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-        <div>
-          <div className="small text-primary fw-bold text-uppercase">Proyek SPHR01300A</div>
-          <h2 className="h4 fw-bold mb-1">Monitoring Billing Periode</h2>
-          <p className="text-muted mb-0">Input manual bulanan mengikuti format monitoring billing.</p>
-        </div>
-        <div className="d-flex gap-2 align-items-end flex-wrap">
-          <div>
-            <label htmlFor="sphr-period" className="form-label small fw-semibold mb-1">Periode</label>
+      <div className="card shadow-sm border-0 mb-4">
+        <div className="card-body p-3 p-md-4">
+          <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div className="d-flex align-items-center gap-3">
+              <div className="bg-gradient-to-br from-blue-700 to-indigo-800 rounded-4 shadow-lg" style="width:58px; height:58px;">
+                <i className="bi bi-currency-rupiah fs-4 text-white"></i>
+              </div>
+              <div>
+                <div className="small text-muted fw-semibold text-uppercase">Proyek SPHR01300A</div>
+                <h2 className="h3 fw-bold mb-0">Monitoring Billing</h2>
+                <p className="text-muted mb-0">Input manual Bulan SKU SPHR01300A</p>
+              </div>
+            </div>
+            <div className="d-flex gap-2 align-items-end flex-wrap">
+              <div className="d-flex gap-2">
+                <div className="position-relative">
+                  <label htmlFor="sphr-period" className="form-label small fw-semibold mb-0 text-muted">Periode</label>
             <input
               id="sphr-period"
               type="month"
