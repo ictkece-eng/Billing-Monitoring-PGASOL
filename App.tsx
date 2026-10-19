@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { BudgetRecord, ProjectId } from './types';
+import { BudgetRecord, ProjectId, Sphr01300aBillingEntry } from './types';
 import { MOCK_DATA, PROJECTS, STATUS_COLS } from './constants';
 import PivotTable from './components/PivotTable';
 import DashboardCharts from './components/DashboardCharts';
@@ -10,6 +10,7 @@ import Status2DetailModal from './components/Status2DetailModal';
 import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
 import { fetchBudgetRecordsFromTiDB, getTiDBDuplicateRowNumbers, uploadBudgetRecordsToTiDB } from './services/tidbService';
+import { fetchSphr01300aEntries } from './services/sphr01300aService';
 import NotaPembatalanMenu from './components/NotaPembatalanMenu';
 import ImportNotaPajak from './components/ImportNotaPajak';
 import Sphr01300aBillingPage from './components/Sphr01300aBillingPage';
@@ -171,6 +172,48 @@ const shiftYearMonthKey = (key: string, monthsToAdd: number) => {
   return toYearMonthKey(d.getFullYear(), d.getMonth() + 1);
 };
 
+type SphrBillingSummary = {
+  period: string;
+  rows: number;
+  totalRo: number;
+  totalActual: number;
+  totalRemaining: number;
+  loading: boolean;
+  unavailable: boolean;
+};
+
+const currentBillingPeriod = () => {
+  const now = new Date();
+  return toYearMonthKey(now.getFullYear(), now.getMonth() + 1);
+};
+
+const formatBillingPeriodLabel = (period: string) => {
+  const [year, month] = period.split('-').map(Number);
+  if (!year || !month || month < 1 || month > 12) return period;
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+};
+
+const summarizeBillingEntries = (period: string, entries: Sphr01300aBillingEntry[]): SphrBillingSummary => {
+  const totalRo = entries
+    .filter(entry => !/^FOD\b/i.test(String(entry.area || '').trim()))
+    .reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiRo) ? entry.nilaiRo : 0), 0);
+  const totalActual = entries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiActual) ? entry.nilaiActual : 0), 0);
+  return {
+    period,
+    rows: entries.length,
+    totalRo,
+    totalActual,
+    totalRemaining: totalRo - totalActual,
+    loading: false,
+    unavailable: false,
+  };
+};
+
+const billingProgressPercent = (summary: SphrBillingSummary) => {
+  if (!summary.totalRo || summary.totalRo <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((summary.totalActual / summary.totalRo) * 100)));
+};
+
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [selectedProjectId, setSelectedProjectId] = useState<ProjectId>('SPHR01031A');
@@ -186,6 +229,15 @@ const App: React.FC = () => {
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [tidbUploading, setTidbUploading] = useState(false);
   const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
+  const [sphrBillingSummary, setSphrBillingSummary] = useState<SphrBillingSummary>(() => ({
+    period: currentBillingPeriod(),
+    rows: 0,
+    totalRo: 0,
+    totalActual: 0,
+    totalRemaining: 0,
+    loading: true,
+    unavailable: false,
+  }));
 
   // Theme (dark/light) - UI only, no impact to data/logic.
   type AppTheme = 'light' | 'dark';
@@ -628,6 +680,37 @@ const App: React.FC = () => {
       cancelled = true;
     };
   }, []);
+
+  // Ringkasan Monitoring Billing SPHR01300A untuk card beranda (read-only).
+  // Cari periode berjalan; jika kosong, pakai periode terakhir yang ada datanya (maks. 3 bulan ke belakang).
+  useEffect(() => {
+    if (activePage === 'sphr01300a') return;
+    let cancelled = false;
+    const load = async () => {
+      setSphrBillingSummary(previous => ({ ...previous, loading: true }));
+      const base = currentBillingPeriod();
+      const candidates = [0, 1, 2]
+        .map(offset => shiftYearMonthKey(base, -offset))
+        .filter((value): value is string => Boolean(value));
+      try {
+        for (const candidate of candidates) {
+          const entries = await fetchSphr01300aEntries(candidate);
+          if (cancelled) return;
+          if (entries.length > 0) {
+            setSphrBillingSummary(summarizeBillingEntries(candidate, entries));
+            return;
+          }
+        }
+        if (!cancelled) setSphrBillingSummary(summarizeBillingEntries(base, []));
+      } catch {
+        if (!cancelled) setSphrBillingSummary(previous => ({ ...previous, loading: false, unavailable: true }));
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePage]);
 
   const handleUploadToTiDB = async () => {
     if (tidbUploading) return;
@@ -1958,11 +2041,52 @@ const App: React.FC = () => {
                 onClick={() => selectProject(project.id)}
                 aria-pressed={selectedProjectId === project.id}
               >
-                <span className="card-body d-flex justify-content-between align-items-center gap-3">
-                  <span>
+                <span className="card-body d-flex justify-content-between align-items-center gap-3 w-100">
+                  <span className={project.id === 'SPHR01300A' ? 'w-100' : undefined}>
                     <span className="d-block fw-bold">{project.label}</span>
                     {project.id === 'SPHR01300A' ? (
-                      <span className="small text-muted">Input billing manual per periode</span>
+                      <span className="sphr-project-summary d-block">
+                        <span className="sphr-project-summary__period">
+                          <i className="bi bi-calendar3" aria-hidden="true" />
+                          {formatBillingPeriodLabel(sphrBillingSummary.period)}
+                          {!sphrBillingSummary.loading && !sphrBillingSummary.unavailable && (
+                            <span className="sphr-project-summary__rows">{sphrBillingSummary.rows} baris</span>
+                          )}
+                        </span>
+                        {sphrBillingSummary.loading ? (
+                          <span className="sphr-project-summary__hint">Memuat nilai dari Monitoring Billing…</span>
+                        ) : sphrBillingSummary.unavailable ? (
+                          <span className="sphr-project-summary__hint">Nilai billing belum tersedia (API belum aktif).</span>
+                        ) : sphrBillingSummary.rows === 0 ? (
+                          <span className="sphr-project-summary__hint">Belum ada input periode ini — klik untuk mulai mengisi.</span>
+                        ) : (
+                          <>
+                            <span className="sphr-project-metrics">
+                              <span className="sphr-project-metric">
+                                <span className="sphr-project-metric__label">Nilai RO</span>
+                                <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalRo)}</span>
+                              </span>
+                              <span className="sphr-project-metric sphr-project-metric--actual">
+                                <span className="sphr-project-metric__label">Actual</span>
+                                <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalActual)}</span>
+                              </span>
+                              <span className={`sphr-project-metric sphr-project-metric--remaining${sphrBillingSummary.totalRemaining < 0 ? ' is-negative' : ''}`}>
+                                <span className="sphr-project-metric__label">Sisa</span>
+                                <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalRemaining)}</span>
+                              </span>
+                            </span>
+                            <span className="sphr-project-progress" aria-hidden="true">
+                              <span
+                                className="sphr-project-progress__bar"
+                                style={{ width: `${billingProgressPercent(sphrBillingSummary)}%` }}
+                              />
+                            </span>
+                            <span className="sphr-project-summary__hint">
+                              {billingProgressPercent(sphrBillingSummary)}% dari Nilai RO sudah terpakai · buka Monitoring Billing untuk detail
+                            </span>
+                          </>
+                        )}
+                      </span>
                     ) : (
                       <span className="small text-muted">
                         {project.recordCount} transaksi · Pagu {formatCurrency(project.contractValue || 0)}

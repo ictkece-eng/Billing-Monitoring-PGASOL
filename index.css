@@ -266,6 +266,314 @@ html {
   max-height: calc(100vh - 300px);
 }
 
+/* SPHR01300A: filter tahapan BAST */
+.sphr-filter-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fafd 100%);
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 16px;
+}
+
+.sphr-filter-panel__icon {
+  color: #1d5fa8;
+}
+
+.sphr-filter-panel__count {
+  background: #1d5fa8;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sphr-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 10px;
+}
+
+.sphr-filter-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #d7e2ef;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  accent-color: #1d5fa8;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.sphr-filter-option:hover {
+  border-color: #93b7de;
+  box-shadow: 0 6px 16px rgba(23, 59, 104, 0.1);
+  transform: translateY(-1px);
+}
+
+.sphr-filter-option__checkbox {
+  flex: none;
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.sphr-filter-option__body {
+  display: block;
+  min-width: 0;
+}
+
+.sphr-filter-option__label {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #173b68;
+}
+
+.sphr-filter-option__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.sphr-owner {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #173b68;
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+
+.sphr-owner--phr {
+  background: #0f766e;
+}
+
+.sphr-filter-option.is-active {
+  border-color: #1d5fa8;
+  background: linear-gradient(180deg, #f0f7ff 0%, #e3effc 100%);
+  box-shadow: inset 0 0 0 1px #1d5fa8, 0 6px 18px rgba(29, 95, 168, 0.14);
+}
+
+.sphr-filter-option.is-active .sphr-filter-option__label {
+  color: #123a6b;
+}
+
+:root[data-theme="dark"] .sphr-filter-panel {
+  background: linear-gradient(180deg, #16233a 0%, #141f33 100%);
+  border-color: rgba(86, 110, 140, 0.55) !important;
+}
+
+:root[data-theme="dark"] .sphr-filter-panel__icon {
+  color: #7db4ef;
+}
+
+:root[data-theme="dark"] .sphr-filter-option {
+  background: #1b2940;
+  border-color: #354a66;
+}
+
+:root[data-theme="dark"] .sphr-filter-option:hover {
+  border-color: #5f89b8;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="dark"] .sphr-filter-option__label {
+  color: #dbe7f6;
+}
+
+:root[data-theme="dark"] .sphr-filter-option__meta {
+  color: #93a7c0;
+}
+
+:root[data-theme="dark"] .sphr-filter-option.is-active {
+  background: linear-gradient(180deg, #21405f 0%, #1c3450 100%);
+  border-color: #6aa9e6;
+  box-shadow: inset 0 0 0 1px #6aa9e6;
+}
+
+:root[data-theme="dark"] .sphr-filter-option.is-active .sphr-filter-option__label {
+  color: #eaf3ff;
+}
+
+/* Tombol & input di halaman billing tetap terbaca di dark mode */
+:root[data-theme="dark"] .sphr-billing-page .btn-outline-secondary {
+  color: #cfe0f4;
+  border-color: #4a6383;
+}
+
+:root[data-theme="dark"] .sphr-billing-page .btn-outline-secondary:hover:not(:disabled) {
+  color: #ffffff;
+  background-color: #24405e;
+  border-color: #6aa9e6;
+}
+
+:root[data-theme="dark"] .sphr-billing-page .btn-outline-secondary:disabled {
+  color: #7d90a8;
+  border-color: #354a66;
+}
+
+/* SPHR01300A: ringkasan nilai di card beranda */
+.sphr-project-summary {
+  width: 100%;
+  min-width: 0;
+}
+
+.sphr-project-summary__period {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #eaf2fb;
+  color: #27527f;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.sphr-project-summary__rows {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #fff;
+  color: #4b6b91;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.sphr-project-metrics {
+  display: block;
+  margin-top: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.sphr-project-metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 5px 11px;
+}
+
+.sphr-project-metric + .sphr-project-metric {
+  border-top: 1px solid #e6edf5;
+}
+
+.sphr-project-metric__label {
+  display: block;
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sphr-project-metric__value {
+  display: block;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sphr-project-metric--actual .sphr-project-metric__value {
+  color: #15803d;
+}
+
+.sphr-project-metric--remaining .sphr-project-metric__value {
+  color: #1d4ed8;
+}
+
+.sphr-project-metric--remaining.is-negative .sphr-project-metric__value {
+  color: #b91c1c;
+}
+
+.sphr-project-progress {
+  display: block;
+  height: 7px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.sphr-project-progress__bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb 0%, #16a34a 100%);
+  transition: width 320ms ease;
+}
+
+.sphr-project-summary__hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+:root[data-theme="dark"] .sphr-project-summary__period {
+  background: #1d3550;
+  color: #b9d4f2;
+}
+
+:root[data-theme="dark"] .sphr-project-summary__rows {
+  background: #16233a;
+  color: #9db8d6;
+}
+
+:root[data-theme="dark"] .sphr-project-metrics {
+  background: #172235;
+  border-color: #33475f;
+}
+
+:root[data-theme="dark"] .sphr-project-metric + .sphr-project-metric {
+  border-top-color: #2a3c54;
+}
+
+:root[data-theme="dark"] .sphr-project-metric__label {
+  color: #93a7c0;
+}
+
+:root[data-theme="dark"] .sphr-project-metric__value {
+  color: #eaf2fb;
+}
+
+:root[data-theme="dark"] .sphr-project-metric--actual .sphr-project-metric__value {
+  color: #6ee7a8;
+}
+
+:root[data-theme="dark"] .sphr-project-metric--remaining .sphr-project-metric__value {
+  color: #93c5fd;
+}
+
+:root[data-theme="dark"] .sphr-project-metric--remaining.is-negative .sphr-project-metric__value {
+  color: #fca5a5;
+}
+
+:root[data-theme="dark"] .sphr-project-progress {
+  background: #2b3d55;
+}
+
+:root[data-theme="dark"] .sphr-project-summary__hint {
+  color: #93a7c0;
+}
+
 /* Micro-interactions (opt-in) */
 .micro-hover {
   transition: transform 120ms ease, box-shadow 120ms ease;

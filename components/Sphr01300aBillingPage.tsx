@@ -143,6 +143,13 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
     });
   }, [entries, statusFilters]);
 
+  const activeFilterCount = STATUS_FIELDS.filter(field => statusFilters[field.key]).length;
+  const completedCount = (field: StatusField) => entries.filter(entry => entry[field]).length;
+
+  const resetStatusFilters = () => {
+    setStatusFilters({ bastDraftVendor: false, bastRequestVendor: false, bastReviewReviewer1: false, bastApprovalApprover: false, bastReconfirmVendor: false, saGrSubmission: false, bastFinalValidation: false });
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setDraft(createEmptyDraft(period));
@@ -242,23 +249,15 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
 
   return (
     <section className={`sphr-billing-page${expanded ? ' sphr-billing-page--expanded' : ''}`}>
-      <div className="card shadow-sm border-0 mb-4">
-        <div className="card-body p-3 p-md-4">
-          <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-            <div className="d-flex align-items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-700 to-indigo-800 rounded-4 shadow-lg" style="width:58px; height:58px;">
-                <i className="bi bi-currency-rupiah fs-4 text-white"></i>
-              </div>
-              <div>
-                <div className="small text-muted fw-semibold text-uppercase">Proyek SPHR01300A</div>
-                <h2 className="h3 fw-bold mb-0">Monitoring Billing</h2>
-                <p className="text-muted mb-0">Input manual Bulan SKU SPHR01300A</p>
-              </div>
-            </div>
-            <div className="d-flex gap-2 align-items-end flex-wrap">
-              <div className="d-flex gap-2">
-                <div className="position-relative">
-                  <label htmlFor="sphr-period" className="form-label small fw-semibold mb-0 text-muted">Periode</label>
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+          <div className="small text-primary fw-bold text-uppercase">Proyek SPHR01300A</div>
+          <h2 className="h4 fw-bold mb-1">Monitoring Billing Periode</h2>
+          <p className="text-muted mb-0">Input manual bulanan mengikuti format monitoring billing.</p>
+        </div>
+        <div className="d-flex gap-2 align-items-end flex-wrap">
+          <div>
+            <label htmlFor="sphr-period" className="form-label small fw-semibold mb-1">Periode</label>
             <input
               id="sphr-period"
               type="month"
@@ -268,31 +267,74 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
               onChange={event => setPeriod(event.target.value)}
             />
           </div>
-          <div className="d-flex gap-2">
-            {STATUS_FIELDS.map(field => (
-              <label key={field.key} className="form-check form-check-inline">
-                <input
-                  type="checkbox"
-                  className="form-check-input"
-                  checked={statusFilters[field.key] || false}
-                  onChange={event => {
-                    setStatusFilters(prev => ({
-                      ...prev,
-                      [field.key]: event.target.checked,
-                    }));
-                  }}
-                  title={`Filter berdasarkan: ${field.label}`}
-                  aria-label={`Filter ${field.label}`}
-                />                <span className="form-check-label small">{field.label}</span>              </label>
-            ))}
-          </div>
           <button type="button" className="btn btn-outline-secondary" onClick={onBack}>
             Kembali
           </button>
         </div>
       </div>
 
-      <div className="row g-3 mb-4">{[
+      <div className="card border-0 shadow-sm sphr-filter-panel mb-4">
+        <div className="card-body p-3 p-md-4">
+          <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+            <div>
+              <div className="d-flex align-items-center gap-2">
+                <i className="bi bi-funnel-fill sphr-filter-panel__icon" aria-hidden="true" />
+                <span className="fw-bold">Filter Tahapan BAST</span>
+                {activeFilterCount > 0 && (
+                  <span className="badge rounded-pill sphr-filter-panel__count">{activeFilterCount} aktif</span>
+                )}
+              </div>
+              <div className="small text-muted mt-1">
+                Centang tahap untuk menampilkan hanya baris yang <strong>sudah selesai</strong> di tahap tersebut.
+                Menampilkan <strong>{filteredEntries.length}</strong> dari <strong>{entries.length}</strong> baris.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary"
+              onClick={resetStatusFilters}
+              disabled={activeFilterCount === 0}
+            >
+              <i className="bi bi-arrow-counterclockwise me-1" aria-hidden="true" />
+              Reset Filter
+            </button>
+          </div>
+          <div className="sphr-filter-grid">
+            {STATUS_FIELDS.map((field, index) => {
+              const checked = statusFilters[field.key] || false;
+              const done = completedCount(field.key);
+              const owner = STATUS_OWNERS[index];
+              return (
+                <label key={field.key} className={`sphr-filter-option${checked ? ' is-active' : ''}`}>
+                  <input
+                    type="checkbox"
+                    className="form-check-input sphr-filter-option__checkbox"
+                    checked={checked}
+                    onChange={event => {
+                      setStatusFilters(prev => ({
+                        ...prev,
+                        [field.key]: event.target.checked,
+                      }));
+                    }}
+                    title={`Filter berdasarkan: ${field.label}`}
+                    aria-label={`Filter ${field.label}`}
+                  />
+                  <span className="sphr-filter-option__body">
+                    <span className="sphr-filter-option__label">{field.label}</span>
+                    <span className="sphr-filter-option__meta">
+                      <span className={`sphr-owner${owner.startsWith('PHR') ? ' sphr-owner--phr' : ''}`}>{owner}</span>
+                      <span>{done}/{entries.length} selesai</span>
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-3 mb-4">{
+        [
           { label: 'Total Nilai RO', amount: totals.ro, color: 'border-primary' },
           { label: 'Total Nilai Actual', amount: totals.actual, color: 'border-success' },
         ].map(item => (
