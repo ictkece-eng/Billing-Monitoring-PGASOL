@@ -238,6 +238,7 @@ const formatBillingPeriodLabel = (period: string) => {
 };
 
 const summarizeBillingEntries = (period: string, entries: Sphr01300aBillingEntry[]): SphrBillingSummary => {
+  // Aggregates all entries into a single summary. Used for the home-page card.
   const totalRo = entries
     .filter(entry => !isFodArea(entry.area))
     .reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiRo) ? entry.nilaiRo : 0), 0);
@@ -262,6 +263,15 @@ const summarizeBillingEntries = (period: string, entries: Sphr01300aBillingEntry
     loading: false,
     unavailable: false,
   };
+};
+
+// Combine entries from MULTIPLE periods into a single summary (aggregates stage counts).
+const summarizeBillingEntriesCombined = (entriesList: Sphr01300aBillingEntry[][]): SphrBillingSummary => {
+  const allEntries: Sphr01300aBillingEntry[] = [];
+  for (const entries of entriesList) {
+    allEntries.push(...entries);
+  }
+  return summarizeBillingEntries('Semua Periode (Agustus-Oktober 2026)', allEntries);
 };
 
 // % serapan dihitung dari nilai terserap dibagi anggaran kontrak (tidak dibatasi 100 agar terlihat saat over budget).
@@ -732,6 +742,16 @@ const App: React.FC = () => {
     [data, sphrBillingSummary.rows, sphrBillingSummary.totalRo]
   );
 
+  // Label for the combined period (e.g., "Agustus · September · Oktober")
+  const allMonthsLabel = isBillingProject && sphrBillingEntries.length > 0
+    ? sphrBillingEntries
+        .map(e => e.period)
+        .filter((period, index, array) => array.indexOf(period) === index)
+        .sort()
+        .map(formatBillingPeriodLabel)
+        .join(' · ')
+    : '';
+
   // Baris Monitoring Billing dipetakan ke bentuk record agar dashboard di bawah card
   // memakai komponen yang sama dengan SPHR01031A (Grand Total, pivot, tabel, grafik).
   const billingRecords = useMemo<BudgetRecord[]>(
@@ -777,7 +797,7 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activePage, sphrSyncNonce]);
 
   // Ringkasan Monitoring Billing SPHR01300A untuk card beranda (read-only).
   // Cari periode berjalan; jika kosong, pakai periode terakhir yang ada datanya (maks. 3 bulan ke belakang).
@@ -791,37 +811,21 @@ const App: React.FC = () => {
         .map(offset => shiftYearMonthKey(base, -offset))
         .filter((value): value is string => Boolean(value));
       try {
-        // Collect entries from ALL periods (not just first with data)
-        let allEntries: Sphr01300aBillingEntry[] = [];
-        const allStageCounts = emptyStageCounts();
+        // Collect entries from ALL periods that have data, then aggregate.
+        const allPeriodEntries: Sphr01300aBillingEntry[][] = [];
         let foundAny = false;
         for (const candidate of candidates) {
           if (cancelled) return;
           const entries = await fetchSphr01300aEntries(candidate);
           if (entries.length > 0) {
-            allEntries.push(...entries);
-            for (const stage of SPHR_BAST_STAGES) {
-              allStageCounts[stage.key] = (allStageCounts[stage.key] || 0) + entries.filter(entry => Boolean(entry[stage.key])).length;
-            }
+            allPeriodEntries.push(entries);
             foundAny = true;
           }
         }
         if (foundAny) {
-          // Aggregate remaining from all entries (non-FOD for RO total)
-          const summaryRoEntries = allEntries.filter(entry => !isFodArea(entry.area));
-          setSphrBillingEntries(allEntries);
-          setSphrBillingSummary({
-            period: candidates[candidates.length - 1],
-            rows: allEntries.length,
-            totalRo: summaryRoEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiRo) ? entry.nilaiRo : 0), 0),
-            totalActual: allEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiActual) ? entry.nilaiActual : 0), 0),
-            totalRemaining: summaryRoEntries.reduce((sum, entry) => sum + entry.nilaiRo - entry.nilaiActual, 0),
-            totalSa: allEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiSa) ? entry.nilaiSa : 0), 0),
-            rowsWithSa: allEntries.filter(entry => String(entry.noSa || '').trim() !== '' || (Number.isFinite(entry.nilaiSa) && entry.nilaiSa > 0)).length,
-            stageCounts: allStageCounts,
-            loading: false,
-            unavailable: false,
-          });
+          const combinedSummary = summarizeBillingEntriesCombined(allPeriodEntries);
+          setSphrBillingEntries(allPeriodEntries.flat());
+          setSphrBillingSummary(combinedSummary);
         } else {
           setSphrBillingEntries([]);
           setSphrBillingSummary(summarizeBillingEntries(base, []));
@@ -835,7 +839,7 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activePage, sphrSyncNonce]);
+  }, [activePage]);
 
   // Sinkron lagi saat tab/browser kembali aktif (mis. checkbox diubah di tab lain).
   // Dibatasi maksimal sekali per 2 detik agar tidak memicu request beruntun.
@@ -846,7 +850,7 @@ const App: React.FC = () => {
       const now = Date.now();
       if (now - lastRun < 2000) return;
       lastRun = now;
-      setSphrSyncNonce(previous => previous + 1);
+      // Hanya refresh tampilan, jangan ubah sphrSyncNonce agar tidak interfer dengan onEntriesChanged dari billing page
     };
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
@@ -2516,9 +2520,8 @@ const App: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     Ringkasan Tahapan BAST · {formatBillingPeriodLabel(sphrBillingSummary.period)}
-                  </p>
-                  <div className="text-[10px] font-bold tabular-nums text-slate-500">
-                    {sphrBillingSummary.rows} baris · Serapan {sphrAbsorbedPct.toFixed(1)}% dari kontrak · Nilai SA {formatCurrency(sphrBillingSummary.totalSa)} ({sphrBillingSummary.rowsWithSa}/{sphrBillingSummary.rows} ber-SA)
+                  </p>                    <div className="text-[10px] font-bold tabular-nums text-slate-500">
+                    {sphrBillingSummary.rows} baris (dari {allMonthsLabel}) · Serapan {sphrAbsorbedPct.toFixed(1)}% dari kontrak · Nilai SA {formatCurrency(sphrBillingSummary.totalSa)} ({sphrBillingSummary.rowsWithSa}/{sphrBillingSummary.rows} ber-SA)
                     {sphrSyncedAt ? ` · sinkron ${sphrSyncedAt}` : ''}
                   </div>
                 </div>
