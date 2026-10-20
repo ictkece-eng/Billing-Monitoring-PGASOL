@@ -791,21 +791,42 @@ const App: React.FC = () => {
         .map(offset => shiftYearMonthKey(base, -offset))
         .filter((value): value is string => Boolean(value));
       try {
+        // Collect entries from ALL periods (not just first with data)
+        let allEntries: Sphr01300aBillingEntry[] = [];
+        const allStageCounts = emptyStageCounts();
+        let foundAny = false;
         for (const candidate of candidates) {
-          const entries = await fetchSphr01300aEntries(candidate);
           if (cancelled) return;
+          const entries = await fetchSphr01300aEntries(candidate);
           if (entries.length > 0) {
-            setSphrBillingEntries(entries);
-            setSphrBillingSummary(summarizeBillingEntries(candidate, entries));
-            setSphrSyncedAt(new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date()));
-            return;
+            allEntries.push(...entries);
+            for (const stage of SPHR_BAST_STAGES) {
+              allStageCounts[stage.key] = (allStageCounts[stage.key] || 0) + entries.filter(entry => Boolean(entry[stage.key])).length;
+            }
+            foundAny = true;
           }
         }
-        if (!cancelled) {
+        if (foundAny) {
+          // Aggregate remaining from all entries (non-FOD for RO total)
+          const summaryRoEntries = allEntries.filter(entry => !isFodArea(entry.area));
+          setSphrBillingEntries(allEntries);
+          setSphrBillingSummary({
+            period: candidates[candidates.length - 1],
+            rows: allEntries.length,
+            totalRo: summaryRoEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiRo) ? entry.nilaiRo : 0), 0),
+            totalActual: allEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiActual) ? entry.nilaiActual : 0), 0),
+            totalRemaining: summaryRoEntries.reduce((sum, entry) => sum + entry.nilaiRo - entry.nilaiActual, 0),
+            totalSa: allEntries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiSa) ? entry.nilaiSa : 0), 0),
+            rowsWithSa: allEntries.filter(entry => String(entry.noSa || '').trim() !== '' || (Number.isFinite(entry.nilaiSa) && entry.nilaiSa > 0)).length,
+            stageCounts: allStageCounts,
+            loading: false,
+            unavailable: false,
+          });
+        } else {
           setSphrBillingEntries([]);
           setSphrBillingSummary(summarizeBillingEntries(base, []));
-          setSphrSyncedAt(new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date()));
         }
+        setSphrSyncedAt(new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date()));
       } catch {
         if (!cancelled) setSphrBillingSummary(previous => ({ ...previous, loading: false, unavailable: true }));
       }
