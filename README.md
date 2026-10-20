@@ -49,7 +49,7 @@ The app will show a button **Upload TiDB** and will also try to load existing re
 
 ### Monitoring multiple projects
 
-Pilih proyek aktif sebelum impor Excel atau input manual. Tabel, dashboard, dan upload TiDB akan mengikuti proyek yang dipilih. Data lama yang belum memiliki penanda proyek otomatis dianggap sebagai `SPHR01031A`; data untuk `SPHR01300A` disimpan terpisah. Pagu `SPHR01300A` belum ditetapkan, sehingga KPI pagu/serapan kontraknya tetap diberi keterangan sampai nilainya tersedia.
+Pilih proyek aktif sebelum impor Excel atau input manual. Tabel, dashboard, dan upload TiDB akan mengikuti proyek yang dipilih. Data lama yang belum memiliki penanda proyek otomatis dianggap sebagai `SPHR01031A`; data untuk `SPHR01300A` disimpan terpisah. Anggaran kontrak `SPHR01300A` ditetapkan Rp 182.227.686.800 di `constants.tsx` (`SPHR01300A_CONTRACT_VALUE_IDR`), dan persentase serapannya dihitung dari Total Nilai RO Monitoring Billing (baris area FOD dikecualikan).
 
 Untuk input billing manual `SPHR01300A`, pilih proyek tersebut lalu buka **Monitoring Billing**. Data dicatat per periode bulanan; total Nilai RO, Actual, Remaining, dan SA dihitung otomatis. Entri disimpan di tabel TiDB terpisah dari transaksi billing umum.
 

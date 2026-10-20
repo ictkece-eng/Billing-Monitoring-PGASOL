@@ -527,6 +527,27 @@ html {
   color: #64748b;
 }
 
+.sphr-project-metric--contract .sphr-project-metric__label {
+  color: #475569;
+}
+
+.sphr-project-metric--standalone {
+  margin-top: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.sphr-project-summary__hint--serapan {
+  margin-top: 8px;
+}
+
+.sphr-project-summary__hint--serapan strong {
+  color: #1d4ed8;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 :root[data-theme="dark"] .sphr-project-summary__period {
   background: #1d3550;
   color: #b9d4f2;
@@ -572,6 +593,19 @@ html {
 
 :root[data-theme="dark"] .sphr-project-summary__hint {
   color: #93a7c0;
+}
+
+:root[data-theme="dark"] .sphr-project-metric--contract .sphr-project-metric__label {
+  color: #a9bdd6;
+}
+
+:root[data-theme="dark"] .sphr-project-metric--standalone {
+  background: #172235;
+  border-color: #33475f;
+}
+
+:root[data-theme="dark"] .sphr-project-summary__hint--serapan strong {
+  color: #93c5fd;
 }
 
 /* Micro-interactions (opt-in) */

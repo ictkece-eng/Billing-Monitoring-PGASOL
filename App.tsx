@@ -214,6 +214,12 @@ const billingProgressPercent = (summary: SphrBillingSummary) => {
   return Math.max(0, Math.min(100, Math.round((summary.totalActual / summary.totalRo) * 100)));
 };
 
+// % serapan dihitung dari nilai terserap dibagi anggaran kontrak (tidak dibatasi 100 agar terlihat saat over budget).
+const absorbedPercentOfContract = (absorbed: number, contract: number) => {
+  if (!Number.isFinite(absorbed) || !Number.isFinite(contract) || contract <= 0) return 0;
+  return Math.max(0, (absorbed / contract) * 100);
+};
+
 const App: React.FC = () => {
   const [data, setData] = useState<BudgetRecord[]>(MOCK_DATA);
   const [selectedProjectId, setSelectedProjectId] = useState<ProjectId>('SPHR01031A');
@@ -844,10 +850,13 @@ const App: React.FC = () => {
   // Anggaran Kontrak (Nilai Awal) + Analisis Serapan
   const contractValue = PROJECTS.find(project => project.id === selectedProjectId)?.contractValue ?? 0;
   const hasContractBudget = PROJECTS.some(project => project.id === selectedProjectId && project.contractValue !== null);
+  // SPHR01300A tidak menyimpan transaksi umum: nilai terserap diambil dari Nilai RO Monitoring Billing
+  // (baris area FOD sudah dikecualikan di summarizeBillingEntries).
+  const isBillingProject = selectedProjectId === 'SPHR01300A';
   // IMPORTANT: gunakan seluruh data agar sisa anggaran & estimasi tidak berubah saat filter periode/search
-  const absorbedValue = totalAbsorbedAll;
+  const absorbedValue = isBillingProject ? sphrBillingSummary.totalRo : totalAbsorbedAll;
   // Snapshot berdasarkan filter yang sedang aktif (untuk perbandingan)
-  const absorbedValueFiltered = totalValue;
+  const absorbedValueFiltered = isBillingProject ? sphrBillingSummary.totalRo : totalValue;
   const remainingValue = useMemo(
     () => Math.max(contractValue - absorbedValue, 0),
     [contractValue, absorbedValue]
@@ -873,8 +882,18 @@ const App: React.FC = () => {
     return Math.min((absorbedValueFiltered / contractValue) * 100, 100);
   }, [contractValue, absorbedValueFiltered]);
 
+  // Serapan SPHR01300A terhadap anggaran kontrak (dipakai di card beranda).
+  const sphrContractValue = PROJECTS.find(project => project.id === 'SPHR01300A')?.contractValue ?? 0;
+  const sphrAbsorbedPct = absorbedPercentOfContract(sphrBillingSummary.totalRo, sphrContractValue);
+
   // Estimasi sisa bulan: dihitung dari data per bulan (periode) dan memperhitungkan bulan kosong (0)
   const monthlyRunRate = useMemo(() => {
+    if (isBillingProject) {
+      // SPHR01300A tidak punya data transaksi umum: pakai Nilai RO periode Monitoring Billing yang aktif.
+      const avg = sphrBillingSummary.totalRo;
+      if (!(avg > 0)) return { monthsCount: 0, monthsWithData: 0, averagePerMonth: 0, mode: 'unparseable' as const };
+      return { monthsCount: 1, monthsWithData: 1, averagePerMonth: avg, mode: 'range' as const };
+    }
     // aggregate by normalized Year-Month
     const totalsByYM = scopedData.reduce((acc, curr) => {
       const key = normalizePeriodeToYearMonthKey(curr.periode);
@@ -908,9 +927,14 @@ const App: React.FC = () => {
       averagePerMonth: avg,
       mode: 'range' as const,
     };
-  }, [scopedData]);
+  }, [isBillingProject, scopedData, sphrBillingSummary.totalRo]);
 
   const monthlyRunRateFiltered = useMemo(() => {
+    if (isBillingProject) {
+      const avg = sphrBillingSummary.totalRo;
+      if (!(avg > 0)) return { monthsCount: 0, monthsWithData: 0, averagePerMonth: 0, mode: 'unparseable' as const };
+      return { monthsCount: 1, monthsWithData: 1, averagePerMonth: avg, mode: 'range' as const };
+    }
     const totalsByYM = filteredData.reduce((acc, curr) => {
       const key = normalizePeriodeToYearMonthKey(curr.periode);
       if (!key) return acc;
@@ -945,6 +969,7 @@ const App: React.FC = () => {
   }, [filteredData]);
 
   const latestPeriodKey = useMemo(() => {
+    if (isBillingProject) return sphrBillingSummary.rows > 0 ? sphrBillingSummary.period : null;
     const keys = scopedData
       .map(row => normalizePeriodeToYearMonthKey(row.periode))
       .filter((key): key is string => Boolean(key))
@@ -953,6 +978,7 @@ const App: React.FC = () => {
   }, [scopedData]);
 
   const latestFilteredPeriodKey = useMemo(() => {
+    if (isBillingProject) return sphrBillingSummary.rows > 0 ? sphrBillingSummary.period : null;
     const keys = filteredData
       .map(row => normalizePeriodeToYearMonthKey(row.periode))
       .filter((key): key is string => Boolean(key))
@@ -2053,12 +2079,18 @@ const App: React.FC = () => {
                             <span className="sphr-project-summary__rows">{sphrBillingSummary.rows} baris</span>
                           )}
                         </span>
+                        <span className="sphr-project-metric sphr-project-metric--contract sphr-project-metric--standalone">
+                          <span className="sphr-project-metric__label">Anggaran Kontrak</span>
+                          <span className="sphr-project-metric__value" title={formatCurrency(sphrContractValue)}>{formatCurrency(sphrContractValue)}</span>
+                        </span>
                         {sphrBillingSummary.loading ? (
                           <span className="sphr-project-summary__hint">Memuat nilai dari Monitoring Billing…</span>
                         ) : sphrBillingSummary.unavailable ? (
                           <span className="sphr-project-summary__hint">Nilai billing belum tersedia (API belum aktif).</span>
                         ) : sphrBillingSummary.rows === 0 ? (
-                          <span className="sphr-project-summary__hint">Belum ada input periode ini — klik untuk mulai mengisi.</span>
+                          <span className="sphr-project-summary__hint">
+                            Belum ada input periode ini ({sphrAbsorbedPct.toFixed(1)}% dari anggaran kontrak {formatCurrency(sphrContractValue)} terserap) — klik untuk mulai mengisi.
+                          </span>
                         ) : (
                           <>
                             <span className="sphr-project-metrics">
@@ -2075,14 +2107,21 @@ const App: React.FC = () => {
                                 <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalRemaining)}</span>
                               </span>
                             </span>
-                            <span className="sphr-project-progress" aria-hidden="true">
+                            <span
+                              className="sphr-project-progress"
+                              aria-hidden="true"
+                              title={`Serapan ${sphrAbsorbedPct.toFixed(1)}% dari anggaran kontrak`}
+                            >
                               <span
                                 className="sphr-project-progress__bar"
-                                style={{ width: `${billingProgressPercent(sphrBillingSummary)}%` }}
+                                style={{ width: `${Math.min(sphrAbsorbedPct, 100)}%` }}
                               />
                             </span>
+                            <span className="sphr-project-summary__hint sphr-project-summary__hint--serapan">
+                              Terserap <strong>{sphrAbsorbedPct.toFixed(1)}%</strong> dari anggaran kontrak · Actual {billingProgressPercent(sphrBillingSummary)}% dari Nilai RO sudah dibayar
+                            </span>
                             <span className="sphr-project-summary__hint">
-                              {billingProgressPercent(sphrBillingSummary)}% dari Nilai RO sudah terpakai · buka Monitoring Billing untuk detail
+                              Buka Monitoring Billing untuk detail per baris
                             </span>
                           </>
                         )}
@@ -2255,7 +2294,15 @@ const App: React.FC = () => {
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Anggaran Kontrak</p>
                       <h2 className="text-xl md:text-2xl font-black text-slate-900 mt-1 safe-number-tight tabular-nums tracking-tight" title={formatCurrency(contractValue)}>{formatCurrency(contractValue)}</h2>
                       <p className="text-xs text-slate-500 font-medium mt-1">
-                        Angka utama dihitung dari <span className="font-semibold">seluruh data</span> (nilai kontrak awal). Baris kecil menunjukkan snapshot sesuai filter periode/pencarian.
+                        {isBillingProject ? (
+                          <>
+                            Persentase serapan dihitung dari <span className="font-semibold">Total Nilai RO Monitoring Billing</span> (baris area FOD dikecualikan) dibagi anggaran kontrak.
+                          </>
+                        ) : (
+                          <>
+                            Angka utama dihitung dari <span className="font-semibold">seluruh data</span> (nilai kontrak awal). Baris kecil menunjukkan snapshot sesuai filter periode/pencarian.
+                          </>
+                        )}
                       </p>
                     </div>
 
@@ -2278,7 +2325,9 @@ const App: React.FC = () => {
                           <i className="bi bi-wallet2 kpi-muted" aria-hidden="true" title="Terserap" />
                         </div>
                         <p className="kpi-value text-xl font-black text-slate-900 mt-1 safe-number tabular-nums tracking-tight" title={formatCurrency(absorbedValue)}>{formatCurrency(absorbedValue)}</p>
-                        <p className="kpi-subtitle text-[12px] text-slate-500 font-medium mt-1 tabular-nums">{absorbedPct.toFixed(1)}% dari kontrak</p>
+                        <p className="kpi-subtitle text-[12px] text-slate-500 font-medium mt-1 tabular-nums">
+                          {absorbedPct.toFixed(1)}% dari kontrak{isBillingProject ? ' (Nilai RO Monitoring Billing, exclude FOD)' : ''}
+                        </p>
                         <p className="kpi-muted text-[12px] text-slate-500/80 mt-2 pt-2 border-t border-slate-200/60">
                           Filtered: <span className="font-semibold safe-number-inline" title={formatCurrency(absorbedValueFiltered)}>{formatCurrency(absorbedValueFiltered)}</span> ({absorbedPctFiltered.toFixed(1)}%)
                         </p>
