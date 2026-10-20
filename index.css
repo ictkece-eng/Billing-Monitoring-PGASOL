@@ -527,15 +527,94 @@ html {
   color: #64748b;
 }
 
-.sphr-project-metric--contract .sphr-project-metric__label {
+/* SPHR01300A: kartu ringkasan tahapan BAST (pengganti kartu Status2) */
+.bast-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+.bast-card:hover {
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.bast-card__label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: #475569;
 }
 
-.sphr-project-metric--standalone {
+.bast-card__owner {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.bast-card__owner.is-phr {
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
+
+.bast-card__value {
   margin-top: 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fafc;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.bast-card__total {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.bast-card__track {
+  height: 6px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.bast-card__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #2563eb;
+  transition: width 320ms ease;
+}
+
+.bast-card__meta {
+  margin-top: 6px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.bast-card.is-full {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.bast-card.is-full .bast-card__fill {
+  background: #16a34a;
+}
+
+.bast-card.is-full .bast-card__meta {
+  color: #15803d;
 }
 
 .sphr-project-summary__hint--serapan {
@@ -595,17 +674,49 @@ html {
   color: #93a7c0;
 }
 
-:root[data-theme="dark"] .sphr-project-metric--contract .sphr-project-metric__label {
-  color: #a9bdd6;
-}
-
-:root[data-theme="dark"] .sphr-project-metric--standalone {
+:root[data-theme="dark"] .bast-card {
   background: #172235;
   border-color: #33475f;
 }
 
-:root[data-theme="dark"] .sphr-project-summary__hint--serapan strong {
+:root[data-theme="dark"] .bast-card__label {
+  color: #a9bdd6;
+}
+
+:root[data-theme="dark"] .bast-card__owner {
+  background: #16233a;
+  border-color: #33475f;
   color: #93c5fd;
+}
+
+:root[data-theme="dark"] .bast-card__owner.is-phr {
+  border-color: #4c3a7a;
+  color: #c4b5fd;
+}
+
+:root[data-theme="dark"] .bast-card__value {
+  color: #eaf2fb;
+}
+
+:root[data-theme="dark"] .bast-card__total {
+  color: #7b8fa8;
+}
+
+:root[data-theme="dark"] .bast-card__track {
+  background: #2b3d55;
+}
+
+:root[data-theme="dark"] .bast-card__meta {
+  color: #93a7c0;
+}
+
+:root[data-theme="dark"] .bast-card.is-full {
+  border-color: #2f6b4a;
+  background: #14291f;
+}
+
+:root[data-theme="dark"] .bast-card.is-full .bast-card__meta {
+  color: #6ee7a8;
 }
 
 /* Micro-interactions (opt-in) */

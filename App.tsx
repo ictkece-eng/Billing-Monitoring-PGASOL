@@ -172,12 +172,56 @@ const shiftYearMonthKey = (key: string, monthsToAdd: number) => {
   return toYearMonthKey(d.getFullYear(), d.getMonth() + 1);
 };
 
+type SphrBillingStageKey =
+  | 'bastDraftVendor'
+  | 'bastRequestVendor'
+  | 'bastReviewReviewer1'
+  | 'bastApprovalApprover'
+  | 'bastReconfirmVendor'
+  | 'saGrSubmission'
+  | 'bastFinalValidation';
+
+// Sama dengan StatusField di halaman Monitoring Billing (label & owner identik).
+const SPHR_BAST_STAGES: { key: SphrBillingStageKey; label: string; short: string; owner: string }[] = [
+  { key: 'bastDraftVendor', label: 'BAST Draft by Vendor', short: 'Draft', owner: 'PGASOL' },
+  { key: 'bastRequestVendor', label: 'BAST Request by Vendor', short: 'Request', owner: 'PGASOL' },
+  { key: 'bastReviewReviewer1', label: 'BAST Review by Reviewer 1', short: 'Review 1', owner: 'PHR 1' },
+  { key: 'bastApprovalApprover', label: 'BAST Approval by Approver', short: 'Approval', owner: 'PHR 2' },
+  { key: 'bastReconfirmVendor', label: 'BAST Reconfirmation by Vendor', short: 'Reconfirm', owner: 'PGASOL' },
+  { key: 'saGrSubmission', label: 'SA/GR Submission Reviewer 1', short: 'SA/GR', owner: 'PHR 1' },
+  { key: 'bastFinalValidation', label: 'BAST Final Validation Reviewer 1', short: 'Final', owner: 'PHR 1' },
+];
+
+const SPHR_STAGE_UNSTARTED = 'Belum mulai';
+
+// Tahap BAST terakhir yang sudah selesai untuk satu baris (dipakai sebagai "posisi" baris di dashboard).
+const billingStageLabel = (entry: Sphr01300aBillingEntry): string => {
+  for (let index = SPHR_BAST_STAGES.length - 1; index >= 0; index -= 1) {
+    const stage = SPHR_BAST_STAGES[index];
+    if (entry[stage.key]) return stage.label;
+  }
+  return SPHR_STAGE_UNSTARTED;
+};
+
+const SPHR_PIVOT_COLUMNS = [SPHR_STAGE_UNSTARTED, ...SPHR_BAST_STAGES.map(stage => stage.label)];
+
+const isFodArea = (area?: string) => /^FOD\b/i.test(String(area || '').trim());
+
+const emptyStageCounts = (): Record<SphrBillingStageKey, number> =>
+  SPHR_BAST_STAGES.reduce((acc, stage) => {
+    acc[stage.key] = 0;
+    return acc;
+  }, {} as Record<SphrBillingStageKey, number>);
+
 type SphrBillingSummary = {
   period: string;
   rows: number;
   totalRo: number;
   totalActual: number;
   totalRemaining: number;
+  totalSa: number;
+  rowsWithSa: number;
+  stageCounts: Record<SphrBillingStageKey, number>;
   loading: boolean;
   unavailable: boolean;
 };
@@ -195,23 +239,29 @@ const formatBillingPeriodLabel = (period: string) => {
 
 const summarizeBillingEntries = (period: string, entries: Sphr01300aBillingEntry[]): SphrBillingSummary => {
   const totalRo = entries
-    .filter(entry => !/^FOD\b/i.test(String(entry.area || '').trim()))
+    .filter(entry => !isFodArea(entry.area))
     .reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiRo) ? entry.nilaiRo : 0), 0);
   const totalActual = entries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiActual) ? entry.nilaiActual : 0), 0);
+  const totalSa = entries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiSa) ? entry.nilaiSa : 0), 0);
+  const rowsWithSa = entries.filter(
+    entry => String(entry.noSa || '').trim() !== '' || (Number.isFinite(entry.nilaiSa) && entry.nilaiSa > 0)
+  ).length;
+  const stageCounts = emptyStageCounts();
+  for (const stage of SPHR_BAST_STAGES) {
+    stageCounts[stage.key] = entries.filter(entry => Boolean(entry[stage.key])).length;
+  }
   return {
     period,
     rows: entries.length,
     totalRo,
     totalActual,
     totalRemaining: totalRo - totalActual,
+    totalSa,
+    rowsWithSa,
+    stageCounts,
     loading: false,
     unavailable: false,
   };
-};
-
-const billingProgressPercent = (summary: SphrBillingSummary) => {
-  if (!summary.totalRo || summary.totalRo <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((summary.totalActual / summary.totalRo) * 100)));
 };
 
 // % serapan dihitung dari nilai terserap dibagi anggaran kontrak (tidak dibatasi 100 agar terlihat saat over budget).
@@ -235,12 +285,19 @@ const App: React.FC = () => {
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [tidbUploading, setTidbUploading] = useState(false);
   const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
+  const [sphrBillingEntries, setSphrBillingEntries] = useState<Sphr01300aBillingEntry[]>([]);
+  // Naikkan nilainya setiap data billing berubah agar ringkasan beranda ikut sinkron.
+  const [sphrSyncNonce, setSphrSyncNonce] = useState(0);
+  const [sphrSyncedAt, setSphrSyncedAt] = useState('');
   const [sphrBillingSummary, setSphrBillingSummary] = useState<SphrBillingSummary>(() => ({
     period: currentBillingPeriod(),
     rows: 0,
     totalRo: 0,
     totalActual: 0,
     totalRemaining: 0,
+    totalSa: 0,
+    rowsWithSa: 0,
+    stageCounts: emptyStageCounts(),
     loading: true,
     unavailable: false,
   }));
@@ -654,8 +711,17 @@ const App: React.FC = () => {
     () => data.filter(record => getRecordProjectId(record) === selectedProjectId),
     [data, selectedProjectId]
   );
+  const isBillingProject = selectedProjectId === 'SPHR01300A';
   const projectSummaries = useMemo(
     () => PROJECTS.map(project => {
+      if (project.id === 'SPHR01300A') {
+        // SPHR01300A memakai Monitoring Billing, bukan transaksi budget_records.
+        return {
+          ...project,
+          recordCount: sphrBillingSummary.rows,
+          absorbed: sphrBillingSummary.totalRo,
+        };
+      }
       const records = data.filter(record => getRecordProjectId(record) === project.id);
       return {
         ...project,
@@ -663,8 +729,34 @@ const App: React.FC = () => {
         absorbed: records.reduce((sum, record) => sum + safeAmount(record.nilaiTagihan), 0),
       };
     }),
-    [data]
+    [data, sphrBillingSummary.rows, sphrBillingSummary.totalRo]
   );
+
+  // Baris Monitoring Billing dipetakan ke bentuk record agar dashboard di bawah card
+  // memakai komponen yang sama dengan SPHR01031A (Grand Total, pivot, tabel, grafik).
+  const billingRecords = useMemo<BudgetRecord[]>(
+    () => sphrBillingEntries.map(entry => ({
+      id: entry.id,
+      projectId: 'SPHR01300A',
+      status: entry.bastFinalValidation ? 'Completed' : 'On Progress',
+      namaUser: entry.pic || '—',
+      tim: entry.area || '—',
+      periode: entry.period,
+      nilaiTagihan: safeAmount(entry.nilaiRo),
+      noRO: entry.noRoSpk || '',
+      tglBAST: entry.tanggalSubmitBast || '',
+      noBAST: entry.noSa || '',
+      status2: billingStageLabel(entry),
+      emailSoftCopy: '',
+      saNo: entry.noSa || '',
+      tglKirimJKT: '',
+      reviewerVendor: '',
+      keterangan: entry.nilaiSa ? `SA ${entry.noSa || '-'} (${entry.nilaiSa})` : '',
+    })),
+    [sphrBillingEntries]
+  );
+  // Hanya untuk tampilan dashboard; impor/upload tetap memakai scopedData asli.
+  const dashboardData = isBillingProject ? billingRecords : scopedData;
 
   // Load persisted data from TiDB (if available). Non-breaking behavior:
   // - If API is not running, silently keep existing local/mock data.
@@ -689,8 +781,8 @@ const App: React.FC = () => {
 
   // Ringkasan Monitoring Billing SPHR01300A untuk card beranda (read-only).
   // Cari periode berjalan; jika kosong, pakai periode terakhir yang ada datanya (maks. 3 bulan ke belakang).
+  // Ikut sinkron saat checkbox tahapan BAST di Monitoring Billing diubah (sphrSyncNonce).
   useEffect(() => {
-    if (activePage === 'sphr01300a') return;
     let cancelled = false;
     const load = async () => {
       setSphrBillingSummary(previous => ({ ...previous, loading: true }));
@@ -703,11 +795,17 @@ const App: React.FC = () => {
           const entries = await fetchSphr01300aEntries(candidate);
           if (cancelled) return;
           if (entries.length > 0) {
+            setSphrBillingEntries(entries);
             setSphrBillingSummary(summarizeBillingEntries(candidate, entries));
+            setSphrSyncedAt(new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date()));
             return;
           }
         }
-        if (!cancelled) setSphrBillingSummary(summarizeBillingEntries(base, []));
+        if (!cancelled) {
+          setSphrBillingEntries([]);
+          setSphrBillingSummary(summarizeBillingEntries(base, []));
+          setSphrSyncedAt(new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' }).format(new Date()));
+        }
       } catch {
         if (!cancelled) setSphrBillingSummary(previous => ({ ...previous, loading: false, unavailable: true }));
       }
@@ -716,7 +814,26 @@ const App: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [activePage]);
+  }, [activePage, sphrSyncNonce]);
+
+  // Sinkron lagi saat tab/browser kembali aktif (mis. checkbox diubah di tab lain).
+  // Dibatasi maksimal sekali per 2 detik agar tidak memicu request beruntun.
+  useEffect(() => {
+    let lastRun = 0;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastRun < 2000) return;
+      lastRun = now;
+      setSphrSyncNonce(previous => previous + 1);
+    };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
 
   const handleUploadToTiDB = async () => {
     if (tidbUploading) return;
@@ -745,7 +862,7 @@ const App: React.FC = () => {
   const periodOptions = useMemo(() => {
     const grouped = new Map<number, number[]>();
 
-    for (const row of scopedData) {
+    for (const row of dashboardData) {
       const parts = extractYearMonthParts(row.periode);
       if (!parts) continue;
 
@@ -779,7 +896,7 @@ const App: React.FC = () => {
           ];
 
     return { grouped, yearOptions, monthOptions };
-  }, [scopedData, filterYear]);
+  }, [dashboardData, filterYear]);
 
   // Keep selected year/month valid when the underlying data changes.
   useEffect(() => {
@@ -806,8 +923,8 @@ const App: React.FC = () => {
   }, [filterMonth, filterYear]);
 
   const filteredData = useMemo(() => {
-    let result = scopedData;
-    
+    let result = dashboardData;
+
     // Period Filtering
     if (filterYear !== ALL_YEAR_VALUE) {
       result = result.filter(d => {
@@ -834,11 +951,21 @@ const App: React.FC = () => {
     }
 
     return result;
-  }, [scopedData, filterMonth, filterYear, searchQuery]);
+  }, [dashboardData, filterMonth, filterYear, searchQuery]);
+
+  // Pivot & grafik memakai data tanpa baris FOD agar totalnya sejalan dengan Total Nilai RO.
+  const aggregatableData = useMemo(
+    () => (isBillingProject ? filteredData.filter(row => !isFodArea(row.tim)) : filteredData),
+    [filteredData, isBillingProject]
+  );
 
   const totalValue = useMemo(
-    () => filteredData.reduce((acc, curr) => acc + safeAmount(curr.nilaiTagihan), 0),
-    [filteredData]
+    () => filteredData.reduce(
+      // Baris area FOD tidak dihitung ke total, sama seperti Total Nilai RO di Monitoring Billing.
+      (acc, curr) => acc + (isBillingProject && isFodArea(curr.tim) ? 0 : safeAmount(curr.nilaiTagihan)),
+      0
+    ),
+    [filteredData, isBillingProject]
   );
 
   // Total serapan dari seluruh data (untuk perbandingan dengan nilai kontrak awal)
@@ -852,11 +979,10 @@ const App: React.FC = () => {
   const hasContractBudget = PROJECTS.some(project => project.id === selectedProjectId && project.contractValue !== null);
   // SPHR01300A tidak menyimpan transaksi umum: nilai terserap diambil dari Nilai RO Monitoring Billing
   // (baris area FOD sudah dikecualikan di summarizeBillingEntries).
-  const isBillingProject = selectedProjectId === 'SPHR01300A';
   // IMPORTANT: gunakan seluruh data agar sisa anggaran & estimasi tidak berubah saat filter periode/search
   const absorbedValue = isBillingProject ? sphrBillingSummary.totalRo : totalAbsorbedAll;
   // Snapshot berdasarkan filter yang sedang aktif (untuk perbandingan)
-  const absorbedValueFiltered = isBillingProject ? sphrBillingSummary.totalRo : totalValue;
+  const absorbedValueFiltered = totalValue;
   const remainingValue = useMemo(
     () => Math.max(contractValue - absorbedValue, 0),
     [contractValue, absorbedValue]
@@ -2055,7 +2181,11 @@ const App: React.FC = () => {
 
       <main className="container py-4">
         {activePage === 'sphr01300a' ? (
-          <Sphr01300aBillingPage canEdit={toolsUnlocked} onBack={() => setActivePage('home')} />
+          <Sphr01300aBillingPage
+            canEdit={toolsUnlocked}
+            onBack={() => setActivePage('home')}
+            onEntriesChanged={() => setSphrSyncNonce(previous => previous + 1)}
+          />
         ) : (
         <>
         <div className="row g-3 mb-4" aria-label="Ringkasan proyek">
@@ -2068,82 +2198,21 @@ const App: React.FC = () => {
                 aria-pressed={selectedProjectId === project.id}
               >
                 <span className="card-body d-flex justify-content-between align-items-center gap-3 w-100">
-                  <span className={project.id === 'SPHR01300A' ? 'w-100' : undefined}>
+                  <span>
                     <span className="d-block fw-bold">{project.label}</span>
-                    {project.id === 'SPHR01300A' ? (
-                      <span className="sphr-project-summary d-block">
-                        <span className="sphr-project-summary__period">
-                          <i className="bi bi-calendar3" aria-hidden="true" />
-                          {formatBillingPeriodLabel(sphrBillingSummary.period)}
-                          {!sphrBillingSummary.loading && !sphrBillingSummary.unavailable && (
-                            <span className="sphr-project-summary__rows">{sphrBillingSummary.rows} baris</span>
-                          )}
-                        </span>
-                        <span className="sphr-project-metric sphr-project-metric--contract sphr-project-metric--standalone">
-                          <span className="sphr-project-metric__label">Anggaran Kontrak</span>
-                          <span className="sphr-project-metric__value" title={formatCurrency(sphrContractValue)}>{formatCurrency(sphrContractValue)}</span>
-                        </span>
-                        {sphrBillingSummary.loading ? (
-                          <span className="sphr-project-summary__hint">Memuat nilai dari Monitoring Billing…</span>
-                        ) : sphrBillingSummary.unavailable ? (
-                          <span className="sphr-project-summary__hint">Nilai billing belum tersedia (API belum aktif).</span>
-                        ) : sphrBillingSummary.rows === 0 ? (
-                          <span className="sphr-project-summary__hint">
-                            Belum ada input periode ini ({sphrAbsorbedPct.toFixed(1)}% dari anggaran kontrak {formatCurrency(sphrContractValue)} terserap) — klik untuk mulai mengisi.
-                          </span>
-                        ) : (
-                          <>
-                            <span className="sphr-project-metrics">
-                              <span className="sphr-project-metric">
-                                <span className="sphr-project-metric__label">Nilai RO</span>
-                                <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalRo)}</span>
-                              </span>
-                              <span className="sphr-project-metric sphr-project-metric--actual">
-                                <span className="sphr-project-metric__label">Actual</span>
-                                <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalActual)}</span>
-                              </span>
-                              <span className={`sphr-project-metric sphr-project-metric--remaining${sphrBillingSummary.totalRemaining < 0 ? ' is-negative' : ''}`}>
-                                <span className="sphr-project-metric__label">Sisa</span>
-                                <span className="sphr-project-metric__value">{formatCurrency(sphrBillingSummary.totalRemaining)}</span>
-                              </span>
-                            </span>
-                            <span
-                              className="sphr-project-progress"
-                              aria-hidden="true"
-                              title={`Serapan ${sphrAbsorbedPct.toFixed(1)}% dari anggaran kontrak`}
-                            >
-                              <span
-                                className="sphr-project-progress__bar"
-                                style={{ width: `${Math.min(sphrAbsorbedPct, 100)}%` }}
-                              />
-                            </span>
-                            <span className="sphr-project-summary__hint sphr-project-summary__hint--serapan">
-                              Terserap <strong>{sphrAbsorbedPct.toFixed(1)}%</strong> dari anggaran kontrak · Actual {billingProgressPercent(sphrBillingSummary)}% dari Nilai RO sudah dibayar
-                            </span>
-                            <span className="sphr-project-summary__hint">
-                              Buka Monitoring Billing untuk detail per baris
-                            </span>
-                          </>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="small text-muted">
-                        {project.recordCount} transaksi · Pagu {formatCurrency(project.contractValue || 0)}
-                      </span>
-                    )}
-                  </span>
-                  {project.id === 'SPHR01031A' && (
-                    <span className="text-end">
-                      <span className="d-block small text-muted">Terserap</span>
-                      <span className="fw-bold text-nowrap">{formatCurrency(project.absorbed)}</span>
+                    <span className="small text-muted">
+                      {project.recordCount} {project.id === 'SPHR01300A' ? 'baris' : 'transaksi'} · Pagu {formatCurrency(project.contractValue || 0)}
                     </span>
-                  )}
+                  </span>
+                  <span className="text-end">
+                    <span className="d-block small text-muted">Terserap</span>
+                    <span className="fw-bold text-nowrap">{formatCurrency(project.absorbed)}</span>
+                  </span>
                 </span>
               </button>
             </div>
           ))}
         </div>
-
         {/* Controls & Metrics */}
         <div className="row g-4 mb-4">
           <div className="col-12 col-md-6">
@@ -2420,8 +2489,50 @@ const App: React.FC = () => {
               )}
             </div>
 
+            {/* SPHR01300A: ringkasan tahapan BAST menggantikan kartu Status2 */}
+            {isBillingProject && sphrBillingSummary.rows > 0 && (
+              <div ref={status2SummaryRef} className="mb-10" id="ringkasan-bast">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Ringkasan Tahapan BAST · {formatBillingPeriodLabel(sphrBillingSummary.period)}
+                  </p>
+                  <div className="text-[10px] font-bold tabular-nums text-slate-500">
+                    {sphrBillingSummary.rows} baris · Serapan {sphrAbsorbedPct.toFixed(1)}% dari kontrak · Nilai SA {formatCurrency(sphrBillingSummary.totalSa)} ({sphrBillingSummary.rowsWithSa}/{sphrBillingSummary.rows} ber-SA)
+                    {sphrSyncedAt ? ` · sinkron ${sphrSyncedAt}` : ''}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {SPHR_BAST_STAGES.map(stage => {
+                    const done = sphrBillingSummary.stageCounts[stage.key] || 0;
+                    const total = sphrBillingSummary.rows;
+                    const pct = total > 0 ? (done / total) * 100 : 0;
+                    const isFull = total > 0 && done >= total;
+                    return (
+                      <div
+                        key={stage.key}
+                        className={`bast-card${isFull ? ' is-full' : ''}`}
+                        title={`${stage.label} (${stage.owner}) — ${done} dari ${total} baris selesai`}
+                      >
+                        <div className="d-flex align-items-start justify-content-between gap-2">
+                          <span className="bast-card__label">{stage.label}</span>
+                          <span className={`bast-card__owner${stage.owner.startsWith('PHR') ? ' is-phr' : ''}`}>{stage.owner}</span>
+                        </div>
+                        <div className="bast-card__value">
+                          {done}<span className="bast-card__total">/{total}</span>
+                        </div>
+                        <div className="bast-card__track">
+                          <div className="bast-card__fill" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="bast-card__meta">{pct.toFixed(1)}% selesai</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Status Billing Summary Cards - COLORFUL VERSION */}
-            {showStatus2Summary && scopedData.length > 0 && (
+            {!isBillingProject && showStatus2Summary && scopedData.length > 0 && (
               <div ref={status2SummaryRef} className="mb-10" id="ringkasan-status2">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -2803,7 +2914,7 @@ const App: React.FC = () => {
         )}
 
         {/* Dynamic Content */}
-        {scopedData.length === 0 ? (
+        {dashboardData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
             <div className="p-5 bg-slate-50 rounded-full mb-5">
                 <svg className="w-16 h-16 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2826,7 +2937,13 @@ const App: React.FC = () => {
                     <p className="text-xs text-slate-500 font-medium">Konsolidasi data berdasarkan Tim dan Pengguna</p>
                   </div>
                 </div>
-                <PivotTable data={filteredData} />
+                <PivotTable
+                  data={aggregatableData}
+                  columns={isBillingProject ? SPHR_PIVOT_COLUMNS : undefined}
+                  columnGroupLabel={isBillingProject ? 'Tahap BAST terakhir' : undefined}
+                  rowGroupLabels={isBillingProject ? { tim: 'Area', user: 'PIC' } : undefined}
+                  showStatusColumn={!isBillingProject}
+                />
               </div>
             )}
 
@@ -2854,7 +2971,7 @@ const App: React.FC = () => {
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">Analisis grafis untuk pengambilan keputusan cepat</p>
                 </div>
-                <DashboardCharts data={filteredData} />
+                <DashboardCharts data={aggregatableData} />
               </div>
             )}
           </div>

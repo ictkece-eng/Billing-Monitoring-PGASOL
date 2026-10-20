@@ -6,6 +6,14 @@ import { STATUS_COLS } from '../constants';
 
 interface PivotTableProps {
   data: BudgetRecord[];
+  /** Kolom pivot; default mengikuti STATUS_COLS (Status2). */
+  columns?: string[];
+  /** Label grup kolom di header tabel. */
+  columnGroupLabel?: string;
+  /** Label untuk kolom pengelompokan baris (default: tim / Nama user). */
+  rowGroupLabels?: { tim: string; user: string };
+  /** Tampilkan kolom "Status2" (matikan untuk data yang tidak punya Status2, mis. Monitoring Billing). */
+  showStatusColumn?: boolean;
 }
 
 const formatCurrency = (amount: number) => {
@@ -17,7 +25,13 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
+const PivotTable: React.FC<PivotTableProps> = ({
+  data,
+  columns = STATUS_COLS,
+  columnGroupLabel = 'Status2',
+  rowGroupLabels = { tim: 'tim', user: 'Nama user' },
+  showStatusColumn = true,
+}) => {
   const tableRef = useRef<HTMLTableElement | null>(null);
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
   const canonicalizeStatus2 = (raw: any): string => {
@@ -25,9 +39,9 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
     const key = normalizeStatus2Key(s);
     if (!key || key === '-' || key === '—' || key === '–' || key === 'n/a' || key === 'na' || key === 'null') return 'Status2 Kosong';
     if (key === 'manual') return 'manual';
-    const canonicalExact = STATUS_COLS.find(col => normalizeStatus2Key(col) === key);
+    const canonicalExact = columns.find(col => normalizeStatus2Key(col) === key);
     if (canonicalExact) return canonicalExact;
-    const canonicalPrefix = STATUS_COLS.find(col => {
+    const canonicalPrefix = columns.find(col => {
       const ck = normalizeStatus2Key(col);
       return ck && key.startsWith(ck);
     });
@@ -64,7 +78,7 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
     let grandTotal = 0;
     
     pivotData.forEach(row => {
-      STATUS_COLS.forEach(col => {
+      columns.forEach(col => {
         totals[col] = (totals[col] || 0) + (row.data[col] || 0);
       });
       grandTotal += row.total;
@@ -88,7 +102,7 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
           Tim: r.tim,
           'Nama User': r.namaUser,
         };
-        for (const col of STATUS_COLS) {
+        for (const col of columns) {
           o[col] = r.data[col] || 0;
         }
         o['Grand Total'] = r.total || 0;
@@ -151,9 +165,11 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
         <div className="d-flex align-items-center gap-2 flex-wrap">
           <span className="badge bg-primary-subtle text-primary border border-primary-subtle pivot-header-badge">Sum of Nilai Tagihan</span>
           <div className="d-flex gap-1">
-              <span className="badge bg-light text-muted border pivot-header-badge">tim</span>
-              <span className="badge bg-light text-muted border pivot-header-badge">Nama user</span>
-              <span className="badge bg-light text-muted border pivot-header-badge">Status2</span>
+              <span className="badge bg-light text-muted border pivot-header-badge">{rowGroupLabels.tim}</span>
+              <span className="badge bg-light text-muted border pivot-header-badge">{rowGroupLabels.user}</span>
+              {showStatusColumn && (
+                <span className="badge bg-light text-muted border pivot-header-badge">{columnGroupLabel}</span>
+              )}
           </div>
         </div>
 
@@ -173,10 +189,10 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
         <table ref={tableRef} className="table table-modern table-hover align-middle">
           <thead>
             <tr className="text-center">
-              <th className="text-start" style={{ width: '12%' }}>Tim</th>
-              <th className="text-start" style={{ width: '15%' }}>Nama user</th>
-              <th style={{ width: '8%' }}>Status2</th>
-              {STATUS_COLS.map(col => (
+              <th className="text-start" style={{ width: '12%' }}>{rowGroupLabels.tim}</th>
+              <th className="text-start" style={{ width: '15%' }}>{rowGroupLabels.user}</th>
+              {showStatusColumn && <th style={{ width: '8%' }}>{columnGroupLabel}</th>}
+              {columns.map(col => (
                 <th key={col} className="text-end" style={{ width: '10%' }}>{col}</th>
               ))}
               <th className="text-end bg-light fw-bold" style={{ width: '12%' }}>Grand Total</th>
@@ -201,8 +217,10 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
                         {row.namaUser}
                       </div>
                     </td>
-                    <td className="text-center text-muted opacity-50 small">manual</td>
-                    {STATUS_COLS.map(col => (
+                    {showStatusColumn && (
+                      <td className="text-center text-muted opacity-50 small">manual</td>
+                    )}
+                    {columns.map(col => (
                       <td key={col} className="text-end font-monospace">
                         {formatCurrency(row.data[col] || 0)}
                       </td>
@@ -217,8 +235,8 @@ const PivotTable: React.FC<PivotTableProps> = ({ data }) => {
           </tbody>
           <tfoot className="table-light border-top border-2">
             <tr className="fw-bold">
-              <td colSpan={3} className="text-dark">Grand Total</td>
-              {STATUS_COLS.map(col => (
+              <td colSpan={showStatusColumn ? 3 : 2} className="text-dark">Grand Total</td>
+              {columns.map(col => (
                 <td key={col} className="text-end font-monospace">
                   {formatCurrency(columnTotals.totals[col] || 0)}
                 </td>

@@ -53,6 +53,10 @@ Pilih proyek aktif sebelum impor Excel atau input manual. Tabel, dashboard, dan 
 
 Untuk input billing manual `SPHR01300A`, pilih proyek tersebut lalu buka **Monitoring Billing**. Data dicatat per periode bulanan; total Nilai RO, Actual, Remaining, dan SA dihitung otomatis. Entri disimpan di tabel TiDB terpisah dari transaksi billing umum.
 
+Saat proyek `SPHR01300A` dipilih di beranda, kartu ringkasannya hanya menampilkan jumlah baris, pagu, dan nilai terserap (sama seperti `SPHR01031A`). Detailnya tampil di dashboard di bawahnya: baris Monitoring Billing dipetakan ke bentuk record (PIC → Nama User, AREA → Tim, Nilai RO → Nilai, tahap BAST terakhir → Status2) sehingga Grand Total, KPI serapan, pivot, tabel, dan grafik bekerja seperti proyek `SPHR01031A`. Pivot memakai kolom tahap BAST (bukan Status2), dan kartu ringkasan Status2 diganti kartu tahapan BAST. Baris area FOD tetap tampil di tabel detail, tetapi tidak dihitung ke total/pivot/grafik maupun serapan kontrak.
+
+Tujuh kartu tahapan BAST di beranda selalu sinkron dengan checkbox tahapan di **Monitoring Billing**: setiap checkbox yang dicentang/dilepas memicu ringkasan dimuat ulang, dan tab yang kembali aktif juga menyegarkan data (maksimal sekali per 2 detik).
+
 ## Deploy to Vercel (with TiDB)
 
 This repo includes Vercel Serverless Functions under `api/`.

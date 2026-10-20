@@ -73,9 +73,11 @@ const formatPeriod = (period: string) => {
 interface Sphr01300aBillingPageProps {
   canEdit: boolean;
   onBack: () => void;
+  /** Dipanggil setiap kali data billing berubah (checkbox tahapan, simpan, atau hapus). */
+  onEntriesChanged?: () => void;
 }
 
-const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, onBack }) => {
+const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, onBack, onEntriesChanged }) => {
   const [period, setPeriod] = useState(currentPeriod);
   const [entries, setEntries] = useState<Sphr01300aBillingEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,6 +183,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
         : [...previous, saved].sort((a, b) => a.area.localeCompare(b.area) || a.pic.localeCompare(b.pic)));
       setDraft(null);
       setEditingId(null);
+      onEntriesChanged?.();
     } catch (reason) {
       setError(String(reason?.message || reason));
     } finally {
@@ -194,6 +197,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
     try {
       await deleteSphr01300aEntry(entry.id);
       setEntries(previous => previous.filter(row => row.id !== entry.id));
+      onEntriesChanged?.();
     } catch (reason) {
       setError(String(reason?.message || reason));
     }
@@ -206,6 +210,8 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
     try {
       const saved = await updateSphr01300aEntry(entry.id, { ...entry, [field]: checked });
       setEntries(previous => previous.map(row => row.id === saved.id ? saved : row));
+      // Beri tahu beranda agar 7 kartu tahapan BAST ikut berubah tanpa perlu refresh.
+      onEntriesChanged?.();
     } catch (reason) {
       setError(String(reason?.message || reason));
     } finally {
@@ -226,6 +232,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
     try {
       await deleteSphr01300aEntriesByPeriod(period);
       setEntries([]);
+      onEntriesChanged?.();
     } catch (reason) {
       setError(String(reason?.message || reason));
     } finally {
