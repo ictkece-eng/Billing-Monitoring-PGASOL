@@ -787,7 +787,7 @@ const App: React.FC = () => {
     const load = async () => {
       setSphrBillingSummary(previous => ({ ...previous, loading: true }));
       const base = currentBillingPeriod();
-      const candidates = [0, 1, 2]
+      const candidates = Array.from({length: 12}, (_, i) => i)
         .map(offset => shiftYearMonthKey(base, -offset))
         .filter((value): value is string => Boolean(value));
       try {
@@ -2507,11 +2507,19 @@ const App: React.FC = () => {
                     const total = sphrBillingSummary.rows;
                     const pct = total > 0 ? (done / total) * 100 : 0;
                     const isFull = total > 0 && done >= total;
+                    const handleCardClick = () => {
+                      setActivePage('sphr01300a');
+                      setActiveTab('dashboard');
+                      setFilterYear(ALL_YEAR_VALUE);
+                      setFilterMonth(ALL_MONTH_VALUE);
+                    };
                     return (
                       <div
                         key={stage.key}
                         className={`bast-card${isFull ? ' is-full' : ''}`}
                         title={`${stage.label} (${stage.owner}) — ${done} dari ${total} baris selesai`}
+                        onClick={handleCardClick}
+                        style={{ cursor: 'pointer' }}
                       >
                         <div className="d-flex align-items-start justify-content-between gap-2">
                           <span className="bast-card__label">{stage.label}</span>
