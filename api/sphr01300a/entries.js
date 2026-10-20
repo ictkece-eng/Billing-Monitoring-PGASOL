@@ -86,29 +86,46 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const period = String(req.query?.period || '').trim();
-      if (!PERIOD_PATTERN.test(period)) {
+      const isAll = !period || period.toLowerCase() === 'all' || period.toLowerCase() === 'semua';
+      if (!isAll && !PERIOD_PATTERN.test(period)) {
         res.statusCode = 400;
-        res.end(JSON.stringify({ ok: false, error: 'Periode harus berformat YYYY-MM' }));
+        res.end(JSON.stringify({ ok: false, error: 'Periode harus berformat YYYY-MM atau all' }));
         return;
       }
       const [rows] = await pool.query(
-        `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
-                CAST(nilai_ro AS SIGNED) AS nilaiRo,
-                CAST(nilai_actual AS SIGNED) AS nilaiActual,
-                CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
-                tanggal_submit_bast AS tanggalSubmitBast,
-                bast_draft_vendor AS bastDraftVendor,
-                bast_request_vendor AS bastRequestVendor,
-                bast_review_reviewer1 AS bastReviewReviewer1,
-                bast_approval_approver AS bastApprovalApprover,
-                bast_reconfirm_vendor AS bastReconfirmVendor,
-                sa_gr_submission AS saGrSubmission,
-                bast_final_validation AS bastFinalValidation,
-                no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
-           FROM sphr01300a_billing_entries
-          WHERE period = ?
-          ORDER BY area, pic, id`,
-        [period]
+        isAll
+          ? `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
+                  CAST(nilai_ro AS SIGNED) AS nilaiRo,
+                  CAST(nilai_actual AS SIGNED) AS nilaiActual,
+                  CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
+                  tanggal_submit_bast AS tanggalSubmitBast,
+                  bast_draft_vendor AS bastDraftVendor,
+                  bast_request_vendor AS bastRequestVendor,
+                  bast_review_reviewer1 AS bastReviewReviewer1,
+                  bast_approval_approver AS bastApprovalApprover,
+                  bast_reconfirm_vendor AS bastReconfirmVendor,
+                  sa_gr_submission AS saGrSubmission,
+                  bast_final_validation AS bastFinalValidation,
+                  no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
+             FROM sphr01300a_billing_entries
+            ORDER BY period DESC, area, pic, id`
+          : `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
+                  CAST(nilai_ro AS SIGNED) AS nilaiRo,
+                  CAST(nilai_actual AS SIGNED) AS nilaiActual,
+                  CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
+                  tanggal_submit_bast AS tanggalSubmitBast,
+                  bast_draft_vendor AS bastDraftVendor,
+                  bast_request_vendor AS bastRequestVendor,
+                  bast_review_reviewer1 AS bastReviewReviewer1,
+                  bast_approval_approver AS bastApprovalApprover,
+                  bast_reconfirm_vendor AS bastReconfirmVendor,
+                  sa_gr_submission AS saGrSubmission,
+                  bast_final_validation AS bastFinalValidation,
+                  no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
+             FROM sphr01300a_billing_entries
+            WHERE period = ?
+            ORDER BY area, pic, id`,
+        isAll ? [] : [period]
       );
       res.setHeader('Content-Type', 'application/json');
       res.statusCode = 200;
