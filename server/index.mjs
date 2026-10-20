@@ -290,27 +290,46 @@ app.all('/api/sphr01300a/entries', async (req, res) => {
 
     if (req.method === 'GET') {
       const period = String(req.query?.period || '').trim();
-      if (!sphrPeriodPattern.test(period)) {
-        res.status(400).json({ ok: false, error: 'Periode harus berformat YYYY-MM' });
+      const isAll = !period || period.toLowerCase() === 'all' || period.toLowerCase() === 'semua';
+      if (!isAll && !sphrPeriodPattern.test(period)) {
+        res.status(400).json({ ok: false, error: 'Periode harus berformat YYYY-MM atau all' });
         return;
       }
-      const [rows] = await pool.query(
-        `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
-                CAST(nilai_ro AS SIGNED) AS nilaiRo,
-                CAST(nilai_actual AS SIGNED) AS nilaiActual,
-                CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
-                tanggal_submit_bast AS tanggalSubmitBast,
-                bast_draft_vendor AS bastDraftVendor,
-                bast_request_vendor AS bastRequestVendor,
-                bast_review_reviewer1 AS bastReviewReviewer1,
-                bast_approval_approver AS bastApprovalApprover,
-                bast_reconfirm_vendor AS bastReconfirmVendor,
-                sa_gr_submission AS saGrSubmission,
-                bast_final_validation AS bastFinalValidation,
-                no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
-           FROM sphr01300a_billing_entries WHERE period = ? ORDER BY area, pic, id`,
-        [period]
-      );
+      const [rows] = isAll
+        ? await pool.query(
+            `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
+                    CAST(nilai_ro AS SIGNED) AS nilaiRo,
+                    CAST(nilai_actual AS SIGNED) AS nilaiActual,
+                    CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
+                    tanggal_submit_bast AS tanggalSubmitBast,
+                    bast_draft_vendor AS bastDraftVendor,
+                    bast_request_vendor AS bastRequestVendor,
+                    bast_review_reviewer1 AS bastReviewReviewer1,
+                    bast_approval_approver AS bastApprovalApprover,
+                    bast_reconfirm_vendor AS bastReconfirmVendor,
+                    sa_gr_submission AS saGrSubmission,
+                    bast_final_validation AS bastFinalValidation,
+                    no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
+               FROM sphr01300a_billing_entries ORDER BY period DESC, area, pic, id`
+          )
+        : await pool.query(
+            `SELECT id, period, pic, area, no_ro_spk AS noRoSpk,
+                    CAST(nilai_ro AS SIGNED) AS nilaiRo,
+                    CAST(nilai_actual AS SIGNED) AS nilaiActual,
+                    CAST(COALESCE(nilai_remaining, nilai_ro - nilai_actual) AS SIGNED) AS nilaiRemaining,
+                    tanggal_submit_bast AS tanggalSubmitBast,
+                    bast_draft_vendor AS bastDraftVendor,
+                    bast_request_vendor AS bastRequestVendor,
+                    bast_review_reviewer1 AS bastReviewReviewer1,
+                    bast_approval_approver AS bastApprovalApprover,
+                    bast_reconfirm_vendor AS bastReconfirmVendor,
+                    sa_gr_submission AS saGrSubmission,
+                    bast_final_validation AS bastFinalValidation,
+                    no_sa AS noSa, CAST(nilai_sa AS SIGNED) AS nilaiSa
+               FROM sphr01300a_billing_entries WHERE period = ? ORDER BY area, pic, id`,
+            [period]
+          );
+      console.log('[API sphr01300a] isAll:', isAll, 'period:', period, 'rows count:', rows?.length);
       res.json({
         ok: true,
         entries: (rows || []).map(row => ({
