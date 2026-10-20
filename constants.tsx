@@ -24,3 +24,17 @@ export const PROJECTS: { id: ProjectId; label: string; contractValue: number | n
 
 // Data dikosongkan agar user bisa memulai dengan data bersih dari impor Excel
 export const MOCK_DATA: BudgetRecord[] = [];
+
+// Total Nilai RO Monitoring Billing mengikuti ringkasan workbook Excel per bulan.
+// Pada umumnya semua baris (termasuk area FOD) ikut dijumlah, KECUALI periode yang
+// daftarkan di bawah ini — mis. Agustus 2026 menyimpan nilai FOD sebagai teks sehingga
+// Excel tidak menghitungnya ke TOTAL NILAI RO.
+// Tambahkan periode lain di sini bila workbook-nya kembali mengecualikan baris FOD.
+const PERIOD_EXCLUDES_FOD_RO = new Set(['2026-08']);
+
+/**
+ * Benarkah Total Nilai RO periode `period` ikut menghitung baris area FOD
+ * (sesuai ringkasan workbook Excel bulan tersebut)?
+ */
+export const periodIncludesFodRo = (period: string): boolean =>
+  !PERIOD_EXCLUDES_FOD_RO.has(String(period || '').trim());

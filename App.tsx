@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BudgetRecord, ProjectId, Sphr01300aBillingEntry } from './types';
-import { MOCK_DATA, PROJECTS, STATUS_COLS } from './constants';
+import { MOCK_DATA, PROJECTS, STATUS_COLS, periodIncludesFodRo } from './constants';
 import PivotTable from './components/PivotTable';
 import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
@@ -240,7 +240,8 @@ const formatBillingPeriodLabel = (period: string) => {
 const summarizeBillingEntries = (period: string, entries: Sphr01300aBillingEntry[]): SphrBillingSummary => {
   // Aggregates all entries into a single summary. Used for the home-page card.
   const totalRo = entries
-    .filter(entry => !isFodArea(entry.area))
+    // Baris FOD ikut dihitung hanya untuk periode yang workbook-nya mengikutsertakannya.
+    .filter(entry => !isFodArea(entry.area) || periodIncludesFodRo(entry.period))
     .reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiRo) ? entry.nilaiRo : 0), 0);
   const totalActual = entries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiActual) ? entry.nilaiActual : 0), 0);
   const totalSa = entries.reduce((sum, entry) => sum + (Number.isFinite(entry.nilaiSa) ? entry.nilaiSa : 0), 0);
@@ -2390,7 +2391,7 @@ const App: React.FC = () => {
                       <p className="text-xs text-slate-500 font-medium mt-1">
                         {isBillingProject ? (
                           <>
-                            Persentase serapan dihitung dari <span className="font-semibold">Total Nilai RO Monitoring Billing</span> (baris area FOD dikecualikan) dibagi anggaran kontrak.
+                            Persentase serapan dihitung dari <span className="font-semibold">Total Nilai RO Monitoring Billing</span> (mengikuti ringkasan Excel tiap bulan) dibagi anggaran kontrak.
                           </>
                         ) : (
                           <>

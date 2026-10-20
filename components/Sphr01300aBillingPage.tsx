@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Sphr01300aBillingEntry } from '../types';
+import { periodIncludesFodRo } from '../constants';
 import {
   createSphr01300aEntry,
   deleteSphr01300aEntry,
@@ -62,7 +63,7 @@ const formatCurrency = (amount: number) => {
 };
 
 const includeInSummaryRo = (entry: Sphr01300aBillingEntry) =>
-  !/^FOD\b/i.test(entry.area.trim());
+  !/^FOD\b/i.test(entry.area.trim()) || periodIncludesFodRo(entry.period);
 
 const formatPeriod = (period: string) => {
   const [year, month] = period.split('-').map(Number);
@@ -348,7 +349,7 @@ const Sphr01300aBillingPage: React.FC<Sphr01300aBillingPageProps> = ({ canEdit, 
           <div className="col-12 col-sm-6 col-xl-4" key={item.label}>
             <div className={`card h-100 border-start border-4 ${item.color} shadow-sm`}>              <div className="card-body py-3">                <div className="small text-muted text-uppercase fw-bold">{item.label}</div>                <div className="fs-5 fw-bold mt-1">{formatCurrency(item.amount)}</div>              </div>            </div>          </div>        ))}
       </div>
-      <p className="small text-muted mb-3">        Total Nilai RO mengikuti ringkasan workbook dan tidak memasukkan baris area FOD; semua baris tetap disimpan dan ditampilkan. Remaining dihitung dari Total Nilai RO dikurangi Total Nilai Actual.      </p>
+      <p className="small text-muted mb-3">        Total Nilai RO mengikuti ringkasan workbook Excel tiap bulan (baris area FOD dihitung atau tidak sesuai file bulan tersebut); semua baris tetap disimpan dan ditampilkan. Remaining dihitung dari Total Nilai RO dikurangi Total Nilai Actual.      </p>
 
       <div className="card shadow-sm border-0">
         <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
