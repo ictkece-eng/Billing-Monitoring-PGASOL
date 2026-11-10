@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { BudgetRecord, ProjectId, Sphr01300aBillingEntry } from './types';
 import { MOCK_DATA, PROJECTS, STATUS_COLS, periodIncludesFodRo } from './constants';
 import PivotTable from './components/PivotTable';
@@ -299,6 +299,7 @@ const App: React.FC = () => {
   const [tidbUploading, setTidbUploading] = useState(false);
   const [workflowReplacementPending, setWorkflowReplacementPending] = useState(false);
   const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
+  const [workflowVisualizationData, setWorkflowVisualizationData] = useState<BudgetRecord[] | null>(null);
   const [sphrBillingEntries, setSphrBillingEntries] = useState<Sphr01300aBillingEntry[]>([]);
   // Naikkan nilainya setiap data billing berubah agar ringkasan beranda ikut sinkron.
   const [sphrSyncNonce, setSphrSyncNonce] = useState(0);
@@ -315,6 +316,10 @@ const App: React.FC = () => {
     loading: true,
     unavailable: false,
   }));
+  const handleWorkflowVisualizationDataChange = useCallback(
+    (records: BudgetRecord[] | null) => setWorkflowVisualizationData(records),
+    []
+  );
 
   // Theme (dark/light) - UI only, no impact to data/logic.
   type AppTheme = 'light' | 'dark';
@@ -985,10 +990,32 @@ const App: React.FC = () => {
     return result;
   }, [dashboardData, filterMonth, filterYear, searchQuery]);
 
+  const insightData = useMemo(() => {
+    if (selectedProjectId !== 'SPHR01031A' || !workflowVisualizationData) return filteredData;
+    let result = workflowVisualizationData;
+    if (filterYear !== ALL_YEAR_VALUE) {
+      result = result.filter(record => {
+        const parts = extractYearMonthParts(record.periode);
+        if (!parts || String(parts.year) !== filterYear) return false;
+        return filterMonth === ALL_MONTH_VALUE || String(parts.month).padStart(2, '0') === filterMonth;
+      });
+    }
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      result = result.filter(record =>
+        record.namaUser.toLowerCase().includes(query)
+        || record.tim.toLowerCase().includes(query)
+        || record.noRO.toLowerCase().includes(query)
+        || record.status2.toLowerCase().includes(query)
+      );
+    }
+    return result;
+  }, [selectedProjectId, workflowVisualizationData, filteredData, filterYear, filterMonth, searchQuery]);
+
   // Pivot & grafik memakai data tanpa baris FOD agar totalnya sejalan dengan Total Nilai RO.
   const aggregatableData = useMemo(
-    () => (isBillingProject ? filteredData.filter(row => !isFodArea(row.tim)) : filteredData),
-    [filteredData, isBillingProject]
+    () => (isBillingProject ? filteredData.filter(row => !isFodArea(row.tim)) : insightData),
+    [filteredData, insightData, isBillingProject]
   );
 
   const totalValue = useMemo(
@@ -2416,6 +2443,7 @@ const App: React.FC = () => {
                 replacementPending={workflowReplacementPending}
                 onReplaceImportedData={handleReplaceWorkflowImport}
                 onReplaceInTiDB={handleUploadToTiDB}
+                onWorkflowVisualizationDataChange={handleWorkflowVisualizationDataChange}
               />
             )}
             {selectedProjectId === 'SPHR01300A' && (

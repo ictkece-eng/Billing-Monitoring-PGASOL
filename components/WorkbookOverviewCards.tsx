@@ -136,6 +136,7 @@ interface WorkbookOverviewCardsProps {
   replacementPending: boolean;
   onReplaceImportedData: (records: BudgetRecord[]) => void;
   onReplaceInTiDB: () => void;
+  onWorkflowVisualizationDataChange: (records: BudgetRecord[] | null) => void;
 }
 
 const normalizeLabel = (value: unknown) =>
@@ -196,6 +197,41 @@ const parsePivotAmount = (value: string): number => {
   const digits = text.replace(/[^\d]/g, '');
   const amount = Number(digits);
   return Number.isSafeInteger(amount) ? (negative ? -amount : amount) : 0;
+};
+
+const buildWorkflowVisualizationRows = (table: WorkflowTableData): BudgetRecord[] => {
+  const headers = table.headers.map(normalizePivotHeader);
+  const teamColumn = headers.findIndex(header => header === 'tim' || header === 'team');
+  const userColumn = headers.findIndex(header => header === 'namauser' || header === 'user');
+  const periodColumn = headers.findIndex(header => header === 'periodebulan' || header === 'periode');
+  const amountColumn = headers.findIndex(header => header === 'nilaitagihan');
+  const statusColumn = headers.findIndex(header => header === 'status');
+  const roColumn = headers.findIndex(header => header === 'noro');
+  if ([teamColumn, userColumn, periodColumn, amountColumn].some(column => column < 0)) return [];
+
+  return table.rows.flatMap((row, index) => {
+    const rawPeriod = row[periodColumn]?.trim() || '';
+    const period = parsePivotPeriod(rawPeriod) || rawPeriod;
+    if (!period || period === '-') return [];
+    return [{
+      id: `workflow-insight-${index}`,
+      projectId: 'SPHR01031A',
+      status: 'On Progress',
+      namaUser: row[userColumn]?.trim() || 'Unknown',
+      tim: row[teamColumn]?.trim() || 'No Team',
+      periode: period,
+      nilaiTagihan: parsePivotAmount(row[amountColumn] || ''),
+      noRO: roColumn < 0 ? '' : row[roColumn] || '',
+      tglBAST: '',
+      noBAST: '',
+      status2: statusColumn < 0 ? 'Status2 Kosong' : row[statusColumn]?.trim() || 'Status2 Kosong',
+      emailSoftCopy: '',
+      saNo: '',
+      tglKirimJKT: '',
+      reviewerVendor: '',
+      keterangan: '',
+    }];
+  });
 };
 
 const buildWorkflowPivot = (table: WorkflowTableData) => {
@@ -355,6 +391,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
   replacementPending,
   onReplaceImportedData,
   onReplaceInTiDB,
+  onWorkflowVisualizationDataChange,
 }) => {
   const dashboardFileRef = useRef<HTMLInputElement>(null);
   const [dashboardStored] = useState(() => readStoredValue(DASHBOARD_STORAGE_KEY, isDashboardSnapshot));
@@ -367,6 +404,8 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
   const [snapshotSyncError, setSnapshotSyncError] = useState('');
   const [workflowQuery, setWorkflowQuery] = useState('');
   const [workflowPage, setWorkflowPage] = useState(0);
+  const [dashboardQuery, setDashboardQuery] = useState('');
+  const [pivotQuery, setPivotQuery] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -427,6 +466,12 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
     };
   }, [dashboardStored.value, workflowStored.value]);
 
+  useEffect(() => {
+    onWorkflowVisualizationDataChange(
+      workflowTable ? buildWorkflowVisualizationRows(workflowTable) : null
+    );
+  }, [onWorkflowVisualizationDataChange, workflowTable]);
+
   const filteredWorkflowRows = useMemo(() => {
     if (!workflowTable) return [];
     const query = workflowQuery.trim().toLowerCase();
@@ -445,6 +490,42 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
     () => workflowTable ? buildWorkflowPivot(workflowTable) : null,
     [workflowTable]
   );
+  const dashboardSearch = dashboardQuery.trim().toLowerCase();
+  const dashboardTrend = (dashboard?.trend || []).filter(row =>
+    !dashboardSearch
+    || [row.period, row.billing, row.ro, row.difference]
+      .some(value => String(value).toLowerCase().includes(dashboardSearch))
+  );
+  const dashboardStatuses = (dashboard?.statuses || []).filter(row =>
+    !dashboardSearch
+    || [row.status, row.count, row.billing]
+      .some(value => String(value).toLowerCase().includes(dashboardSearch))
+  );
+  const pivotSearch = pivotQuery.trim().toLowerCase();
+  const matchedPivotPeriods = workflowPivot?.periods.filter(period =>
+    !pivotSearch || formatPivotPeriod(period).toLowerCase().includes(pivotSearch)
+  ) || [];
+  const pivotSearchMatchesPeriod = pivotSearch !== '' && matchedPivotPeriods.length > 0;
+  const pivotPeriods = pivotSearchMatchesPeriod
+    ? matchedPivotPeriods
+    : workflowPivot?.periods || [];
+  const pivotTeams = workflowPivot?.teams.flatMap(team => {
+    const teamMatches = team.team.toLowerCase().includes(pivotSearch);
+    const matchedUsers = pivotSearch
+      ? team.users.filter(user => user.name.toLowerCase().includes(pivotSearch))
+      : team.users;
+    if (pivotSearch && !pivotSearchMatchesPeriod && !teamMatches && matchedUsers.length === 0) return [];
+    const users = !pivotSearch || pivotSearchMatchesPeriod || teamMatches ? team.users : matchedUsers;
+    const totals = new Map<string, number>();
+    users.forEach(user => {
+      user.amounts.forEach((amount, period) => totals.set(period, (totals.get(period) || 0) + amount));
+    });
+    return [{ ...team, users, totals }];
+  }) || [];
+  const pivotGrandTotals = new Map<string, number>();
+  pivotTeams.forEach(team => {
+    team.totals.forEach((amount, period) => pivotGrandTotals.set(period, (pivotGrandTotals.get(period) || 0) + amount));
+  });
 
   const handleDashboardFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -535,6 +616,15 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
               </div>
             ) : (
               <>
+                <div className="mb-3">
+                  <input
+                    className="form-control form-control-sm"
+                    value={dashboardQuery}
+                    onChange={event => setDashboardQuery(event.target.value)}
+                    placeholder="Cari periode, status, jumlah, atau nilai…"
+                    aria-label="Cari di kartu Dashboard"
+                  />
+                </div>
                 <div className="row g-2 mb-3">
                   {[
                     ['Total Nilai Tagihan', formatCurrency(dashboard.totalBilling)],
@@ -557,14 +647,14 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
                       <tr><th>Periode</th><th className="text-end">Nilai Tagihan</th><th className="text-end">Nilai RO</th><th className="text-end">Selisih RO - Tagihan</th></tr>
                     </thead>
                     <tbody>
-                      {dashboard.trend.map((row, index) => (
+                      {dashboardTrend.map((row, index) => (
                         <tr key={`${row.period}-${index}`}>
                           <td>{row.period}</td><td className="text-end text-nowrap">{formatCurrency(row.billing)}</td>
                           <td className="text-end text-nowrap">{formatCurrency(row.ro)}</td>
                           <td className="text-end text-nowrap">{formatCurrency(row.difference)}</td>
                         </tr>
                       ))}
-                      {dashboard.trend.length === 0 && <tr><td colSpan={4} className="text-center text-muted">Tabel tren kosong.</td></tr>}
+                      {dashboardTrend.length === 0 && <tr><td colSpan={4} className="text-center text-muted">Tidak ada data tren yang cocok.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -575,13 +665,13 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
                       <tr><th>Status</th><th className="text-end">Jumlah Data</th><th className="text-end">Nilai Tagihan</th></tr>
                     </thead>
                     <tbody>
-                      {dashboard.statuses.map((row, index) => (
+                      {dashboardStatuses.map((row, index) => (
                         <tr key={`${row.status}-${index}`}>
                           <td>{row.status}</td><td className="text-end">{row.count.toLocaleString('id-ID')}</td>
                           <td className="text-end text-nowrap">{formatCurrency(row.billing)}</td>
                         </tr>
                       ))}
-                      {dashboard.statuses.length === 0 && <tr><td colSpan={3} className="text-center text-muted">Tabel status kosong.</td></tr>}
+                      {dashboardStatuses.length === 0 && <tr><td colSpan={3} className="text-center text-muted">Tidak ada data status yang cocok.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -640,7 +730,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
                       setWorkflowQuery(event.target.value);
                       setWorkflowPage(0);
                     }}
-                    placeholder="Cari di tabel workflow…"
+                    placeholder="Cari nama, tim, status, periode, atau kolom lain…"
                     aria-label="Cari di tabel Database Workflow"
                   />
                   <span className="small text-muted">{filteredWorkflowRows.length.toLocaleString('id-ID')} dari {workflowTable.rows.length.toLocaleString('id-ID')} baris</span>
@@ -699,55 +789,69 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
             ) : workflowPivot.periods.length === 0 ? (
               <div className="text-center text-muted small py-4">Tidak ada periode yang dapat dibaca pada data workflow.</div>
             ) : (
-              <div className="table-responsive border rounded" style={{ maxHeight: 520 }}>
-                <table className="table table-sm table-hover align-middle mb-0" style={{ minWidth: 720 }}>
-                  <thead className="table-primary sticky-top">
-                    <tr>
-                      <th className="text-nowrap">Tim</th>
-                      <th className="text-nowrap">Nama User</th>
-                      {workflowPivot.periods.map(period => (
-                        <th key={period} className="text-end text-nowrap">{formatPivotPeriod(period)}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workflowPivot.teams.map(team => (
-                      <React.Fragment key={team.team}>
-                        <tr className="table-light">
-                          <th colSpan={workflowPivot.periods.length + 2}>{team.team}</th>
-                        </tr>
-                        {team.users.map(user => (
-                          <tr key={`${team.team}-${user.name}`}>
-                            <td className="text-muted">{team.team}</td>
-                            <td className="text-nowrap">{user.name}</td>
-                            {workflowPivot.periods.map(period => (
+              <>
+                <div className="mb-3">
+                  <input
+                    className="form-control form-control-sm"
+                    value={pivotQuery}
+                    onChange={event => setPivotQuery(event.target.value)}
+                    placeholder="Cari tim, nama user, atau periode…"
+                    aria-label="Cari di kartu Pivot"
+                  />
+                </div>
+                <div className="table-responsive border rounded" style={{ maxHeight: 520 }}>
+                  <table className="table table-sm table-hover align-middle mb-0" style={{ minWidth: 720 }}>
+                    <thead className="table-primary sticky-top">
+                      <tr>
+                        <th className="text-nowrap">Tim</th>
+                        <th className="text-nowrap">Nama User</th>
+                        {pivotPeriods.map(period => (
+                          <th key={period} className="text-end text-nowrap">{formatPivotPeriod(period)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pivotTeams.map(team => (
+                        <React.Fragment key={team.team}>
+                          <tr className="table-light">
+                            <th colSpan={pivotPeriods.length + 2}>{team.team}</th>
+                          </tr>
+                          {team.users.map(user => (
+                            <tr key={`${team.team}-${user.name}`}>
+                              <td className="text-muted">{team.team}</td>
+                              <td className="text-nowrap">{user.name}</td>
+                              {pivotPeriods.map(period => (
+                                <td key={period} className="text-end text-nowrap">
+                                  {(user.amounts.get(period) || 0).toLocaleString('en-US')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                          <tr className="table-primary fw-bold">
+                            <td colSpan={2}>{team.team} Total</td>
+                            {pivotPeriods.map(period => (
                               <td key={period} className="text-end text-nowrap">
-                                {(user.amounts.get(period) || 0).toLocaleString('en-US')}
+                                {(team.totals.get(period) || 0).toLocaleString('en-US')}
                               </td>
                             ))}
                           </tr>
-                        ))}
-                        <tr className="table-primary fw-bold">
-                          <td colSpan={2}>{team.team} Total</td>
-                          {workflowPivot.periods.map(period => (
-                            <td key={period} className="text-end text-nowrap">
-                              {(team.totals.get(period) || 0).toLocaleString('en-US')}
-                            </td>
-                          ))}
-                        </tr>
-                      </React.Fragment>
-                    ))}
-                    <tr className="table-dark fw-bold">
-                      <td colSpan={2}>Grand Total</td>
-                      {workflowPivot.periods.map(period => (
-                        <td key={period} className="text-end text-nowrap">
-                          {(workflowPivot.grandTotals.get(period) || 0).toLocaleString('en-US')}
-                        </td>
+                        </React.Fragment>
                       ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                      <tr className="table-dark fw-bold">
+                        <td colSpan={2}>Grand Total</td>
+                        {pivotPeriods.map(period => (
+                          <td key={period} className="text-end text-nowrap">
+                            {(pivotGrandTotals.get(period) || 0).toLocaleString('en-US')}
+                          </td>
+                        ))}
+                      </tr>
+                      {pivotTeams.length === 0 && (
+                        <tr><td colSpan={pivotPeriods.length + 2} className="text-center text-muted">Tidak ada tim atau user yang cocok.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </section>
