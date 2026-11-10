@@ -6,7 +6,7 @@ import { STATUS_COLS } from '../constants';
 
 interface ExcelImportProps {
   onImport: (data: BudgetRecord[]) => void;
-  onWorkflowTableImport?: (table: WorkflowTableData) => void;
+  onWorkflowTableImport?: (table: WorkflowTableData) => void | Promise<void>;
   projectId?: ProjectId;
   disabled?: boolean;
   workflowOnly?: boolean;
@@ -225,7 +225,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         // Gunakan cellDates: false untuk mendapatkan nilai mentah, lalu diproses manual
@@ -558,8 +558,8 @@ const ExcelImport: React.FC<ExcelImportProps> = ({
           return;
         }
 
+        if (workflowTable) await onWorkflowTableImport?.(workflowTable);
         onImport(mappedData);
-        if (workflowTable) onWorkflowTableImport?.(workflowTable);
       } catch (err) {
         console.error("Excel Import Error:", err);
         alert("Gagal membaca file Excel. Pastikan format kolom sesuai.");

@@ -25,6 +25,7 @@ const pool = createPool();
 let schemaEnsured = false;
 let historySchemaEnsured = false;
 let sphr01300aSchemaEnsured = false;
+let workbookSnapshotsSchemaEnsured = false;
 const ensureBudgetRecordsTable = async () => {
   if (schemaEnsured) return;
   await pool.query(`
@@ -132,6 +133,19 @@ const ensureSphr01300aBillingTable = async () => {
     'UPDATE sphr01300a_billing_entries SET nilai_remaining = nilai_ro - nilai_actual WHERE nilai_remaining IS NULL'
   );
   sphr01300aSchemaEnsured = true;
+};
+
+const ensureWorkbookSnapshotsTable = async () => {
+  if (workbookSnapshotsSchemaEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_workbook_snapshots (
+      snapshot_key VARCHAR(32) NOT NULL,
+      payload LONGTEXT NOT NULL,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (snapshot_key)
+    )
+  `);
+  workbookSnapshotsSchemaEnsured = true;
 };
 
 const sphrPeriodPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -267,6 +281,47 @@ app.get('/api/health', async (_req, res) => {
     res.json({ ok: true, db: true, rows });
   } catch (e) {
     res.status(500).json({ ok: false, db: false, error: String(e?.message || e) });
+  }
+});
+
+app.all('/api/workbook-snapshots', async (req, res) => {
+  try {
+    await ensureWorkbookSnapshotsTable();
+    if (req.method === 'GET') {
+      const [rows] = await pool.query(
+        'SELECT snapshot_key, payload FROM app_workbook_snapshots WHERE snapshot_key IN (?, ?)',
+        ['dashboard', 'workflow']
+      );
+      const snapshots = {};
+      for (const row of rows || []) snapshots[String(row.snapshot_key)] = JSON.parse(String(row.payload));
+      res.set('Cache-Control', 'no-store');
+      res.json({ ok: true, snapshots });
+      return;
+    }
+    if (req.method !== 'PUT') {
+      res.set('Allow', 'GET, PUT').status(405).send('Method Not Allowed');
+      return;
+    }
+    const key = String(req.body?.key || '');
+    const allowedKeys = new Set(['dashboard', 'workflow']);
+    if (!allowedKeys.has(key) || req.body?.payload === undefined) {
+      res.status(400).json({ ok: false, error: 'Key dan payload workbook tidak valid' });
+      return;
+    }
+    const payload = JSON.stringify(req.body.payload);
+    if (Buffer.byteLength(payload, 'utf8') > 4 * 1024 * 1024) {
+      res.status(413).json({ ok: false, error: 'Data workbook melebihi batas ukuran 4 MB' });
+      return;
+    }
+    await pool.query(
+      `INSERT INTO app_workbook_snapshots (snapshot_key, payload)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE payload = VALUES(payload)`,
+      [key, payload]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: String(error?.message || error) });
   }
 });
 

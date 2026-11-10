@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import ExcelImport, { WorkflowTableData } from './ExcelImport';
 import { BudgetRecord } from '../types';
+import { fetchWorkbookSnapshots, saveWorkbookSnapshot } from '../services/workbookSnapshotService';
 
 interface DashboardTrendRow {
   period: string;
@@ -362,8 +363,69 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
   const [dashboardError, setDashboardError] = useState(dashboardStored.error);
   const [workflowTable, setWorkflowTable] = useState<WorkflowTableData | null>(workflowStored.value);
   const [workflowError, setWorkflowError] = useState(workflowStored.error);
+  const [snapshotSyncing, setSnapshotSyncing] = useState(true);
+  const [snapshotSyncError, setSnapshotSyncError] = useState('');
   const [workflowQuery, setWorkflowQuery] = useState('');
   const [workflowPage, setWorkflowPage] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const syncSnapshots = async () => {
+      setSnapshotSyncing(true);
+      setSnapshotSyncError('');
+      try {
+        const remote = await fetchWorkbookSnapshots();
+        const remoteDashboard = Object.prototype.hasOwnProperty.call(remote, 'dashboard')
+          ? remote.dashboard
+          : undefined;
+        const remoteWorkflow = Object.prototype.hasOwnProperty.call(remote, 'workflow')
+          ? remote.workflow
+          : undefined;
+        let nextDashboard: DashboardSnapshot | null;
+        if (remoteDashboard === undefined) nextDashboard = dashboardStored.value;
+        else if (isDashboardSnapshot(remoteDashboard)) nextDashboard = remoteDashboard;
+        else throw new Error('Snapshot Dashboard di server memiliki format yang tidak sesuai.');
+
+        let nextWorkflow: WorkflowTableData | null;
+        if (remoteWorkflow === undefined) nextWorkflow = workflowStored.value;
+        else if (isWorkflowTable(remoteWorkflow)) nextWorkflow = remoteWorkflow;
+        else throw new Error('Snapshot Database Workflow di server memiliki format yang tidak sesuai.');
+        nextWorkflow = normalizeWorkflowStatus(nextWorkflow).table;
+        if (remoteDashboard === undefined && nextDashboard) {
+          await saveWorkbookSnapshot('dashboard', nextDashboard);
+        }
+        if (
+          nextWorkflow
+          && (
+            remoteWorkflow === undefined
+            || JSON.stringify(nextWorkflow) !== JSON.stringify(remoteWorkflow)
+          )
+        ) {
+          await saveWorkbookSnapshot('workflow', nextWorkflow);
+        }
+
+        if (cancelled) return;
+        setDashboard(nextDashboard);
+        setWorkflowTable(nextWorkflow);
+        try {
+          if (nextDashboard) localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(nextDashboard));
+          if (nextWorkflow) localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(nextWorkflow));
+        } catch (error) {
+          setSnapshotSyncError(`Workbook sudah sinkron di server, tetapi cache browser gagal diperbarui: ${String(error instanceof Error ? error.message : error)}`);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSnapshotSyncError(`Gagal sinkronisasi workbook bersama. Data lokal tetap ditampilkan jika tersedia: ${String(error instanceof Error ? error.message : error)}`);
+        }
+      } finally {
+        if (!cancelled) setSnapshotSyncing(false);
+      }
+    };
+    void syncSnapshots();
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardStored.value, workflowStored.value]);
 
   const filteredWorkflowRows = useMemo(() => {
     if (!workflowTable) return [];
@@ -391,24 +453,35 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
       const snapshot = parseDashboardWorkbook(workbook);
-      localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(snapshot));
+      await saveWorkbookSnapshot('dashboard', snapshot);
       setDashboard(snapshot);
+      try {
+        localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(snapshot));
+      } catch (error) {
+        setDashboardError(`Dashboard berhasil disimpan bersama, tetapi cache browser gagal diperbarui: ${String(error instanceof Error ? error.message : error)}`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setDashboardError(`Gagal membaca Dashboard.xlsx: ${message}`);
+      setDashboardError(`Gagal mengimpor Dashboard.xlsx: ${message}`);
     } finally {
       event.target.value = '';
     }
   };
 
-  const handleWorkflowTableImport = (table: WorkflowTableData) => {
+  const handleWorkflowTableImport = async (table: WorkflowTableData) => {
     setWorkflowError('');
     try {
       const normalized = normalizeWorkflowStatus(table).table;
-      localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(normalized));
+      await saveWorkbookSnapshot('workflow', normalized);
       setWorkflowTable(normalized);
+      try {
+        localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(normalized));
+      } catch (error) {
+        setWorkflowError(`Database Workflow berhasil disimpan bersama, tetapi cache browser gagal diperbarui: ${String(error instanceof Error ? error.message : error)}`);
+      }
     } catch (error) {
-      setWorkflowError(`Data Database Workflow berhasil dibaca, tetapi gagal disimpan untuk refresh: ${error instanceof Error ? error.message : String(error)}`);
+      setWorkflowError(`Gagal menyimpan Database Workflow bersama: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   };
 
@@ -429,7 +502,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
           <div className="card-header d-flex flex-wrap align-items-center justify-content-between gap-2" style={{ backgroundColor: '#eaf2ff' }}>
             <div>
               <h2 id="dashboard-workbook-title" className="h6 fw-bold mb-1">Dashboard</h2>
-              <div className="small text-muted">Snapshot KPI, tren bulanan, dan status dari Dashboard.xlsx; hasil impor tersimpan di browser ini saat halaman di-refresh.</div>
+              <div className="small text-muted">Snapshot KPI, tren bulanan, dan status dari Dashboard.xlsx; tersimpan bersama agar dapat dibuka dari perangkat lain.</div>
             </div>
             <div>
               <input
@@ -438,13 +511,13 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
                 accept=".xlsx,.xls"
                 className="d-none"
                 onChange={handleDashboardFile}
-                disabled={!canImport}
+                disabled={!canImport || snapshotSyncing}
               />
               <button
                 type="button"
                 className="btn btn-sm btn-outline-primary"
                 onClick={() => dashboardFileRef.current?.click()}
-                disabled={!canImport}
+                disabled={!canImport || snapshotSyncing}
                 title={canImport ? 'Impor Dashboard.xlsx' : 'Masuk Admin untuk mengimpor'}
               >
                 <i className="bi bi-file-earmark-arrow-up me-1" aria-hidden="true" />
@@ -453,6 +526,8 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
             </div>
           </div>
           <div className="card-body">
+            {snapshotSyncing && <div className="alert alert-info py-2 small" role="status">Memuat workbook bersama…</div>}
+            {snapshotSyncError && <div className="alert alert-warning py-2 small" role="alert">{snapshotSyncError}</div>}
             {dashboardError && <div className="alert alert-danger py-2 small" role="alert">{dashboardError}</div>}
             {!dashboard ? (
               <div className="text-center text-muted small py-4">
@@ -525,13 +600,13 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
           <div className="card-header d-flex flex-wrap align-items-center justify-content-between gap-2" style={{ backgroundColor: '#e8f5ee' }}>
             <div>
               <h2 id="workflow-workbook-title" className="h6 fw-bold mb-1">Database Workflow</h2>
-              <div className="small text-muted">Tabel master dari Database Workflow.xlsx; hasil impor tersimpan di browser ini saat halaman di-refresh.</div>
+              <div className="small text-muted">Tabel master dari Database Workflow.xlsx; tersimpan bersama agar dapat dibuka dari perangkat lain.</div>
             </div>
             <ExcelImport
               onImport={handleWorkflowImport}
               onWorkflowTableImport={handleWorkflowTableImport}
               projectId="SPHR01031A"
-              disabled={!canImport}
+              disabled={!canImport || snapshotSyncing}
               workflowOnly
               buttonClassName="btn btn-sm btn-outline-success"
               label="Impor Database Workflow"

@@ -51,6 +51,7 @@ let _pool = null;
 let _schemaEnsured = false;
 let _historySchemaEnsured = false;
 let _sphr01300aSchemaEnsured = false;
+let _workbookSnapshotsSchemaEnsured = false;
 
 export const ensureSphr01300aBillingTable = async (pool) => {
   if (_sphr01300aSchemaEnsured) return;
@@ -161,6 +162,19 @@ export const ensureUploadHistoryTables = async (pool) => {
   `);
 
   _historySchemaEnsured = true;
+};
+
+export const ensureWorkbookSnapshotsTable = async (pool) => {
+  if (_workbookSnapshotsSchemaEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_workbook_snapshots (
+      snapshot_key VARCHAR(32) NOT NULL,
+      payload LONGTEXT NOT NULL,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (snapshot_key)
+    )
+  `);
+  _workbookSnapshotsSchemaEnsured = true;
 };
 
 export const getPool = () => {

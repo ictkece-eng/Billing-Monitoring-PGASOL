@@ -51,7 +51,7 @@ The app will show a button **Upload TiDB** and will also try to load existing re
 
 Pilih proyek aktif sebelum impor Excel atau input manual. Tabel, dashboard, dan upload TiDB akan mengikuti proyek yang dipilih. Data lama yang belum memiliki penanda proyek otomatis dianggap sebagai `SPHR01031A`; data untuk `SPHR01300A` disimpan terpisah. Anggaran kontrak `SPHR01300A` ditetapkan Rp 182.227.686.800 di `constants.tsx` (`SPHR01300A_CONTRACT_VALUE_IDR`), dan persentase serapannya dihitung dari Total Nilai RO Monitoring Billing (baris area FOD dikecualikan).
 
-Di beranda proyek `SPHR01031A`, kartu di bawah Pencarian Cepat menerima impor `Dashboard.xlsx` dan `Database Workflow.xlsx`. Kartu Dashboard menampilkan snapshot KPI, tabel tren, dan tabel status dari workbook; nilainya tidak berubah mengikuti filter aplikasi. Kartu Database Workflow menampilkan seluruh kolom/baris master dengan pencarian dan halaman, serta mengganti data `SPHR01031A` di tampilan aplikasi ketika workbook diimpor. Kartu Pivot Nilai Tagihan mengelompokkan jumlah nilai berdasarkan Tim, Nama User, dan Periode Bulan dari Database Workflow, termasuk subtotal tim dan grand total. Pagu SPHR01031A tetap Rp 185.068.724.480 dan kartu ringkasan Status2 berdasarkan filter aktif tidak ditampilkan.
+Di beranda proyek `SPHR01031A`, kartu di bawah Pencarian Cepat menerima impor `Dashboard.xlsx` dan `Database Workflow.xlsx`. Snapshot Dashboard, tabel Database Workflow, dan pivot disimpan melalui API pada TiDB yang sama, sehingga dapat dimuat dari perangkat/browser berbeda; data lokal lama otomatis dipindahkan ke server jika snapshot server belum tersedia. Kartu Dashboard menampilkan KPI, tren bulanan, dan tabel status dari workbook; nilainya tidak berubah mengikuti filter aplikasi. Kartu Database Workflow menampilkan seluruh kolom/baris master dengan pencarian dan halaman, serta mengganti data `SPHR01031A` di tampilan aplikasi ketika workbook diimpor. Kartu Pivot Nilai Tagihan mengelompokkan jumlah nilai berdasarkan Tim, Nama User, dan Periode Bulan dari Database Workflow, termasuk subtotal tim dan grand total. Pagu SPHR01031A tetap Rp 185.068.724.480 dan kartu ringkasan Status2 berdasarkan filter aktif tidak ditampilkan. Sinkronisasi antarperangkat memerlukan API berjalan dan konfigurasi TiDB yang sama.
 
 Setelah impor Database Workflow, admin dapat memilih **Ganti data SPHR01031A di TiDB** pada kartu tersebut. Aksi ini meminta konfirmasi lalu mengganti data proyek itu dalam satu transaksi; data SPHR01300A dan proyek lain tidak dihapus. Baris berisi nilai tagihan tetap diimpor meskipun nomor transaksinya kosong, sehingga jumlahnya dapat berbeda dari hitungan nomor pada Dashboard.xlsx.
 
@@ -73,6 +73,8 @@ When deployed to Vercel:
    - `GET /api/health`
    - `GET /api/budget-records`
    - `POST /api/budget-records/upload`
+   - `GET /api/workbook-snapshots`
+   - `PUT /api/workbook-snapshots`
 
 ### Vercel Environment Variables
 
