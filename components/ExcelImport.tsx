@@ -6,14 +6,30 @@ import { STATUS_COLS } from '../constants';
 
 interface ExcelImportProps {
   onImport: (data: BudgetRecord[]) => void;
+  onWorkflowTableImport?: (table: WorkflowTableData) => void;
   projectId?: ProjectId;
+  disabled?: boolean;
+  workflowOnly?: boolean;
   /** Optional: override button class for consistent styling in navbar/dropdowns */
   buttonClassName?: string;
   /** Optional: override button label */
   label?: string;
 }
 
-const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01031A', buttonClassName, label }) => {
+export interface WorkflowTableData {
+  headers: string[];
+  rows: string[][];
+}
+
+const ExcelImport: React.FC<ExcelImportProps> = ({
+  onImport,
+  onWorkflowTableImport,
+  projectId = 'SPHR01031A',
+  disabled = false,
+  workflowOnly = false,
+  buttonClassName,
+  label,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const normalizeStatus2Key = (s: any) => String(s ?? '').trim().toLowerCase();
@@ -222,8 +238,10 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
 
         let aoa: any[][] = [];
         let headerRowOffset = 0;
+        let sourceWorksheet: XLSX.WorkSheet | undefined;
         for (const sheetName of wb.SheetNames) {
-          const sheetRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' }) as any[][];
+          const worksheet = wb.Sheets[sheetName];
+          const sheetRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
           const workflowHeaderIndex = sheetRows.findIndex(row => {
             const headers = new Set(row.map(headerToAlnum));
             return headers.has('tahapsaatini')
@@ -234,16 +252,36 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
           if (workflowHeaderIndex < 0) continue;
           aoa = sheetRows.slice(workflowHeaderIndex);
           headerRowOffset = workflowHeaderIndex;
+          sourceWorksheet = worksheet;
           break;
         }
 
         if (aoa.length === 0 && wb.SheetNames[0]) {
-          aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }) as any[][];
+          const worksheet = wb.Sheets[wb.SheetNames[0]];
+          sourceWorksheet = worksheet;
+          aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
         }
 
         const mappedData: BudgetRecord[] = [];
+        let workflowTable: WorkflowTableData | undefined;
         if (aoa.length > 1) {
           const headers = aoa[0] || [];
+          const workflowHeaderMeta = headers.map((header: unknown) => headerToAlnum(header));
+          const isWorkflowSheet = workflowHeaderMeta.includes('tahapsaatini')
+            && workflowHeaderMeta.includes('paymentstatus')
+            && workflowHeaderMeta.includes('nilaitagihan')
+            && workflowHeaderMeta.includes('periodebulan');
+          if (isWorkflowSheet) {
+            const tableHeaders = headers.map((header: unknown, index: number) => String(header ?? '').trim() || `Kolom ${index + 1}`);
+            const tableRows = aoa.slice(1).map((row, rowIndex) =>
+              tableHeaders.map((_, columnIndex) => {
+                const cellAddress = XLSX.utils.encode_cell({ r: headerRowOffset + rowIndex + 1, c: columnIndex });
+                const cell = sourceWorksheet?.[cellAddress];
+                return cell ? XLSX.utils.format_cell(cell) : String(row[columnIndex] ?? '');
+              })
+            ).filter(row => row.some(value => value.trim() !== ''));
+            workflowTable = { headers: tableHeaders, rows: tableRows };
+          }
           const headerMeta = headers.map((h, idx) => ({
             idx,
             norm: normalizeHeader(h),
@@ -292,7 +330,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
             return has ? best : 0;
           };
 
-          const isWorkflowSheet = findFirstCol(['tahap saat ini']) !== undefined;
+          const hasWorkflowColumns = findFirstCol(['tahap saat ini']) !== undefined;
           // Column candidates (exact matches first)
           const colStatus = findFirstCol(['tahap saat ini', 'status']);
           const colNamaUser = findFirstCol(['nama user', 'user', 'nama']);
@@ -340,14 +378,14 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
             'status 2',
             'status billing',
             'billing status',
-            ...(isWorkflowSheet ? ['status'] : []),
+            ...(hasWorkflowColumns ? ['status'] : []),
           ]);
           const status2PrefixCols = [...new Set([
             ...findColsByAlnumPrefix('status2'),
             ...findColsByAlnumPrefix('statusbilling'),
           ])];
           const workflowStatus2Labels = new Map<string, string>();
-          if (isWorkflowSheet && colStatus2Exact !== undefined) {
+          if (hasWorkflowColumns && colStatus2Exact !== undefined) {
             for (const row of aoa.slice(1)) {
               const raw = String(getCell(row, colStatus2Exact) ?? '').replace(/\s+/g, ' ').trim();
               const key = normalizeStatus2Key(raw);
@@ -385,7 +423,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
             const status2Raw = colStatus2Exact !== undefined
               ? getCell(row, colStatus2Exact)
               : getFirstNonEmpty(row, status2PrefixCols);
-            const status2 = isWorkflowSheet
+            const status2 = hasWorkflowColumns
               ? workflowStatus2Labels.get(normalizeStatus2Key(status2Raw)) || canonicalizeStatus2(status2Raw ?? 'manual')
               : canonicalizeStatus2(status2Raw ?? 'manual');
 
@@ -412,9 +450,14 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
           }
         }
 
+        if (workflowOnly && (!workflowTable || mappedData.length === 0)) {
+          throw new Error('Gunakan workbook dengan tabel master Database Workflow yang berisi data.');
+        }
+
         // Fallback: object-based parsing (older templates)
         if (mappedData.length === 0) {
-          const jsonData = XLSX.utils.sheet_to_json(ws) as any[];
+          if (!sourceWorksheet) throw new Error('Sheet Excel tidak tersedia untuk dibaca.');
+          const jsonData = XLSX.utils.sheet_to_json(sourceWorksheet) as any[];
           if (jsonData.length === 0) {
             alert("File Excel kosong atau format tidak didukung.");
             return;
@@ -516,6 +559,7 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
         }
 
         onImport(mappedData);
+        if (workflowTable) onWorkflowTableImport?.(workflowTable);
       } catch (err) {
         console.error("Excel Import Error:", err);
         alert("Gagal membaca file Excel. Pastikan format kolom sesuai.");
@@ -534,9 +578,12 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
         onChange={handleFileChange}
         accept=".xlsx, .xls, .csv"
         className="hidden"
+        disabled={disabled}
       />
       <button
+        type="button"
         onClick={() => fileInputRef.current?.click()}
+        disabled={disabled}
         className={
           buttonClassName ||
           'flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-emerald-100'

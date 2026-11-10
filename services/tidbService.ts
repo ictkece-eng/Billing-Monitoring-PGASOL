@@ -180,8 +180,17 @@ export const getTiDBDuplicateRowNumbers = async (records: BudgetRecord[]) => {
   }
 };
 
-export const uploadBudgetRecordsToTiDB = async (records: BudgetRecord[]) => {
+export const uploadBudgetRecordsToTiDB = async (
+  records: BudgetRecord[],
+  options: { replaceProjectId?: 'SPHR01031A' } = {}
+) => {
   const { unique, skippedDuplicates } = dedupeRecordsForUpload(records);
+  if (options.replaceProjectId && records.some(record => (record.projectId || 'SPHR01031A') !== options.replaceProjectId)) {
+    throw new Error('Penggantian TiDB hanya dapat berisi data SPHR01031A.');
+  }
+  if (options.replaceProjectId && unique.length === 0) {
+    throw new Error('Data kosong tidak dapat digunakan untuk mengganti data TiDB.');
+  }
 
   // Use relative URL so Vite proxy can forward in dev.
   const res = await fetch('/api/budget-records/upload', {
@@ -189,12 +198,15 @@ export const uploadBudgetRecordsToTiDB = async (records: BudgetRecord[]) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       records: unique,
+      ...(options.replaceProjectId ? { replaceProjectId: options.replaceProjectId } : {}),
       meta: {
         // For upload-history logging (optional; backend remains compatible without it)
         clientReceived: records.length,
         clientSentUnique: unique.length,
         clientSkippedDuplicates: skippedDuplicates,
-        note: records.length > 0 ? `Proyek ${records[0].projectId || 'SPHR01031A'}` : undefined,
+        note: options.replaceProjectId
+          ? 'Penggantian Database Workflow SPHR01031A'
+          : records.length > 0 ? `Proyek ${records[0].projectId || 'SPHR01031A'}` : undefined,
       },
     }),
   });

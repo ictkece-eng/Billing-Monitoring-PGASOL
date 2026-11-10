@@ -532,12 +532,24 @@ app.delete('/api/budget-records/purge', async (req, res) => {
 
 app.post('/api/budget-records/upload', async (req, res) => {
   const input = req.body?.records;
+  const replaceProjectId = req.body?.replaceProjectId;
   if (!Array.isArray(input)) {
     res.status(400).json({ ok: false, error: 'Body harus { records: BudgetRecord[] }' });
     return;
   }
   if (input.some(record => record?.projectId !== undefined && !['SPHR01031A', 'SPHR01300A'].includes(record.projectId))) {
     res.status(400).json({ ok: false, error: 'projectId harus SPHR01031A atau SPHR01300A' });
+    return;
+  }
+  if (
+    replaceProjectId !== undefined
+    && (
+      replaceProjectId !== 'SPHR01031A'
+      || input.length === 0
+      || input.some(record => (record?.projectId || 'SPHR01031A') !== replaceProjectId)
+    )
+  ) {
+    res.status(400).json({ ok: false, error: 'Penggantian harus berisi data dan hanya dapat mengganti proyek SPHR01031A' });
     return;
   }
 
@@ -558,57 +570,65 @@ app.post('/api/budget-records/upload', async (req, res) => {
     // Chunk inserts to avoid max_allowed_packet issues.
     const CHUNK = 500;
     let inserted = 0;
-
-    for (let i = 0; i < normalized.length; i += CHUNK) {
-      const chunk = normalized.slice(i, i + CHUNK);
-      if (chunk.length === 0) continue;
-
-      const cols = [
-        'id',
-        'project_id',
-        'status',
-        'namaUser',
-        'tim',
-        'periode',
-        'nilaiTagihan',
-        'noRO',
-        'tglBAST',
-        'noBAST',
-        'status2',
-        'emailSoftCopy',
-        'saNo',
-        'tglKirimJKT',
-        'reviewerVendor',
-        'keterangan',
-      ];
-
-      const placeholders = chunk
-        .map(() => `(${cols.map(() => '?').join(',')})`)
-        .join(',');
-
-      const values = [];
-      for (const r of chunk) {
-        values.push(
-          r.id,
-          r.projectId,
-          r.status,
-          r.namaUser,
-          r.tim,
-          r.periode,
-          r.nilaiTagihan,
-          r.noRO,
-          r.tglBAST,
-          r.noBAST,
-          r.status2,
-          r.emailSoftCopy,
-          r.saNo,
-          r.tglKirimJKT,
-          r.reviewerVendor,
-          r.keterangan
-        );
+    let connection;
+    try {
+      if (replaceProjectId) {
+        connection = await pool.getConnection();
+        await connection.beginTransaction();
+        await connection.query('DELETE FROM budget_records WHERE project_id = ?', [replaceProjectId]);
       }
+      const executor = connection || pool;
 
-      const sql = `INSERT INTO budget_records (${cols.join(',')}) VALUES ${placeholders}
+      for (let i = 0; i < normalized.length; i += CHUNK) {
+        const chunk = normalized.slice(i, i + CHUNK);
+        if (chunk.length === 0) continue;
+
+        const cols = [
+          'id',
+          'project_id',
+          'status',
+          'namaUser',
+          'tim',
+          'periode',
+          'nilaiTagihan',
+          'noRO',
+          'tglBAST',
+          'noBAST',
+          'status2',
+          'emailSoftCopy',
+          'saNo',
+          'tglKirimJKT',
+          'reviewerVendor',
+          'keterangan',
+        ];
+
+        const placeholders = chunk
+          .map(() => `(${cols.map(() => '?').join(',')})`)
+          .join(',');
+
+        const values = [];
+        for (const r of chunk) {
+          values.push(
+            r.id,
+            r.projectId,
+            r.status,
+            r.namaUser,
+            r.tim,
+            r.periode,
+            r.nilaiTagihan,
+            r.noRO,
+            r.tglBAST,
+            r.noBAST,
+            r.status2,
+            r.emailSoftCopy,
+            r.saNo,
+            r.tglKirimJKT,
+            r.reviewerVendor,
+            r.keterangan
+          );
+        }
+
+        const sql = `INSERT INTO budget_records (${cols.join(',')}) VALUES ${placeholders}
         ON DUPLICATE KEY UPDATE
           project_id=VALUES(project_id),
           status=VALUES(status),
@@ -626,10 +646,22 @@ app.post('/api/budget-records/upload', async (req, res) => {
           reviewerVendor=VALUES(reviewerVendor),
           keterangan=VALUES(keterangan)`;
 
-      const [result] = await pool.query(sql, values);
-      // mysql2 returns OkPacket-like object with affectedRows.
-      const affected = Number(result?.affectedRows || 0);
-      inserted += affected;
+        const [result] = await executor.query(sql, values);
+        // mysql2 returns OkPacket-like object with affectedRows.
+        inserted += Number(result?.affectedRows || 0);
+      }
+      if (connection) await connection.commit();
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+        } catch {
+          // Keep the original write error.
+        }
+      }
+      throw error;
+    } finally {
+      if (connection) connection.release();
     }
 
     // Non-breaking: try to write upload history, but never fail the upload if history logging fails.

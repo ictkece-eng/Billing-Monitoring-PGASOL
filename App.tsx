@@ -6,6 +6,7 @@ import DashboardCharts from './components/DashboardCharts';
 import DetailedDataTable from './components/DetailedDataTable';
 import BudgetInputForm from './components/BudgetInputForm';
 import ExcelImport from './components/ExcelImport';
+import WorkbookOverviewCards from './components/WorkbookOverviewCards';
 import Status2DetailModal from './components/Status2DetailModal';
 import UploadHistoryModal from './components/UploadHistoryModal';
 import { getBudgetInsights } from './services/geminiService';
@@ -295,6 +296,7 @@ const App: React.FC = () => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [tidbUploading, setTidbUploading] = useState(false);
+  const [workflowReplacementPending, setWorkflowReplacementPending] = useState(false);
   const [uploadHistoryOpen, setUploadHistoryOpen] = useState(false);
   const [sphrBillingEntries, setSphrBillingEntries] = useState<Sphr01300aBillingEntry[]>([]);
   // Naikkan nilainya setiap data billing berubah agar ringkasan beranda ikut sinkron.
@@ -662,8 +664,6 @@ const App: React.FC = () => {
   }, [isViewer]);
 
   // UX: ringkasan status2 ditampilkan hanya saat user klik kartu "Terserap".
-  const [showStatus2Summary, setShowStatus2Summary] = useState(false);
-
   const [status2ModalOpen, setStatus2ModalOpen] = useState(false);
   const [status2ModalKey, setStatus2ModalKey] = useState<string>('');
   const [status2ModalLabel, setStatus2ModalLabel] = useState<string>('');
@@ -704,16 +704,6 @@ const App: React.FC = () => {
       g.timer = null;
       requestToolsUnlock('gesture');
     }
-  };
-
-  const scrollToStatus2Summary = () => {
-    // Pastikan section-nya sudah dirender dulu sebelum scroll.
-    setShowStatus2Summary(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        status2SummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
   };
 
   // Guard: keep all aggregations consistent even if some rows contain non-finite numbers (NaN/Infinity).
@@ -867,13 +857,27 @@ const App: React.FC = () => {
       alert('Tidak ada data untuk diupload. Silakan impor Excel terlebih dahulu.');
       return;
     }
+    if (workflowReplacementPending && selectedProjectId !== 'SPHR01031A') {
+      alert('Pilih SPHR01031A untuk mengganti data Database Workflow di TiDB.');
+      return;
+    }
+    if (
+      workflowReplacementPending
+      && !window.confirm(
+        `Ganti seluruh data SPHR01031A di TiDB dengan ${scopedData.length} baris yang baru diimpor? Data SPHR01300A tidak akan diubah.`
+      )
+    ) return;
     setTidbUploading(true);
     try {
-      const resp = await uploadBudgetRecordsToTiDB(scopedData);
+      const resp = await uploadBudgetRecordsToTiDB(
+        scopedData,
+        workflowReplacementPending ? { replaceProjectId: 'SPHR01031A' } : undefined
+      );
+      if (workflowReplacementPending) setWorkflowReplacementPending(false);
       const sent = resp.sentUnique ?? resp.received ?? scopedData.length;
       const skipped = resp.skippedDuplicates ?? 0;
       alert(
-        `Upload ke TiDB selesai. Baris terkirim (unik): ${sent}.` +
+        `${workflowReplacementPending ? 'Penggantian' : 'Upload'} ke TiDB selesai. Baris terkirim (unik): ${sent}.` +
           (skipped > 0 ? ` Duplikat tidak dikirim: ${skipped}.` : '') +
           ` affectedRows: ${resp.affectedRows ?? '-'}\n\n` +
           `Proyek ${selectedProjectId} akan terpisah saat data di-load kembali (saat API TiDB aktif).`
@@ -1878,6 +1882,28 @@ const App: React.FC = () => {
     });
   };
 
+  const handleReplaceWorkflowImport = (importedData: BudgetRecord[]) => {
+    if (importedData.length === 0) {
+      alert('Database Workflow.xlsx tidak berisi baris transaksi yang dapat diimpor.');
+      return;
+    }
+
+    const projectImportedData = importedData.map(record => ({ ...record, projectId: 'SPHR01031A' as const }));
+    setData(previous => [
+      ...previous.filter(record => getRecordProjectId(record) !== 'SPHR01031A'),
+      ...projectImportedData,
+    ]);
+    setSelectedProjectId('SPHR01031A');
+    setFilterYear(ALL_YEAR_VALUE);
+    setFilterMonth(ALL_MONTH_VALUE);
+    setSearchQuery('');
+    setWorkflowReplacementPending(true);
+    alert(
+      `Database Workflow berhasil dimuat ke aplikasi: ${projectImportedData.length} baris. ` +
+      'Data SPHR01031A sebelumnya diganti di tampilan aplikasi. Pilih “Ganti data SPHR01031A di TiDB” untuk mengganti data tersimpan di TiDB.'
+    );
+  };
+
   useEffect(() => {
     setAiInsight(null);
   }, [filteredData]);
@@ -2379,6 +2405,18 @@ const App: React.FC = () => {
 
         {activePage === 'home' && (
           <>
+            {selectedProjectId === 'SPHR01031A' && (
+              <WorkbookOverviewCards
+                canImport={toolsUnlocked}
+                canReplaceInTiDB={toolsUnlocked}
+                data={scopedData}
+                tidbUploading={tidbUploading}
+                replacementPending={workflowReplacementPending}
+                onReplaceImportedData={handleReplaceWorkflowImport}
+                onReplaceInTiDB={handleUploadToTiDB}
+              />
+            )}
+
             {/* Contract Budget Card */}
             <div className="mb-10">
               {hasContractBudget ? (
@@ -2403,17 +2441,7 @@ const App: React.FC = () => {
 
                     <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2 w-full">
                       <div
-                        className="kpi-card card-terserap bg-slate-50 border border-slate-200 rounded-2xl p-5 min-w-[280px] w-max flex-none cursor-pointer shadow-sm hover:shadow-md transition-all hover:-translate-y-[1px] focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                        role="button"
-                        tabIndex={0}
-                        title="Klik untuk melihat Ringkasan Status2 (berdasarkan filter aktif)"
-                        onClick={scrollToStatus2Summary}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            scrollToStatus2Summary();
-                          }
-                        }}
+                        className="kpi-card card-terserap bg-slate-50 border border-slate-200 rounded-2xl p-5 min-w-[280px] w-max flex-none shadow-sm"
                       >
                         <div className="d-flex align-items-start justify-content-between gap-2">
                           <p className="kpi-title text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0">Terserap</p>
@@ -2565,7 +2593,7 @@ const App: React.FC = () => {
             )}
 
             {/* Status Billing Summary Cards - COLORFUL VERSION */}
-            {!isBillingProject && showStatus2Summary && scopedData.length > 0 && (
+            {selectedProjectId !== 'SPHR01031A' && !isBillingProject && scopedData.length > 0 && (
               <div ref={status2SummaryRef} className="mb-10" id="ringkasan-status2">
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
