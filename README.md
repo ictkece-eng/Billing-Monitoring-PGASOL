@@ -57,6 +57,8 @@ Setelah impor Database Workflow, admin dapat memilih **Ganti data SPHR01031A di 
 
 Untuk input billing manual `SPHR01300A`, pilih proyek tersebut lalu buka **Monitoring Billing**. Data dicatat per periode bulanan; total Nilai RO, Actual, Remaining, dan SA dihitung otomatis. Entri disimpan di tabel TiDB terpisah dari transaksi billing umum.
 
+Di beranda proyek `SPHR01300A`, kartu **Impor Monitoring Billing SPHR01300A** menyediakan tombol impor untuk Agustus, September, dan Oktober 2026. Pilih workbook yang sesuai bulan; setelah konfirmasi, data hanya mengganti periode tersebut. Penggantian divalidasi dan dijalankan dalam satu transaksi agar data bulan lain tetap utuh dan data lama periode terpilih tetap tersedia jika impor gagal. Periksa hasilnya pada halaman **Monitoring Billing** dengan memilih periode yang sama.
+
 Saat proyek `SPHR01300A` dipilih di beranda, kartu ringkasannya hanya menampilkan jumlah baris, pagu, dan nilai terserap (sama seperti `SPHR01031A`). Detailnya tampil di dashboard di bawahnya: baris Monitoring Billing dipetakan ke bentuk record (PIC → Nama User, AREA → Tim, Nilai RO → Nilai, tahap BAST terakhir → Status2) sehingga Grand Total, KPI serapan, pivot, tabel, dan grafik bekerja seperti proyek `SPHR01031A`. Pivot memakai kolom tahap BAST (bukan Status2), dan kartu ringkasan Status2 diganti kartu tahapan BAST. Baris area FOD tetap tampil di tabel detail, tetapi tidak dihitung ke total/pivot/grafik maupun serapan kontrak.
 
 Tujuh kartu tahapan BAST di beranda selalu sinkron dengan checkbox tahapan di **Monitoring Billing**: setiap checkbox yang dicentang/dilepas memicu ringkasan dimuat ulang, dan tab yang kembali aktif juga menyegarkan data (maksimal sekali per 2 detik).

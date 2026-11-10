@@ -15,6 +15,7 @@ import { fetchSphr01300aEntries } from './services/sphr01300aService';
 import NotaPembatalanMenu from './components/NotaPembatalanMenu';
 import ImportNotaPajak from './components/ImportNotaPajak';
 import Sphr01300aBillingPage from './components/Sphr01300aBillingPage';
+import Sphr01300aWorkbookCard from './components/Sphr01300aWorkbookCard';
 import { ocrImageToText } from './services/ocrService';
 import { parseNotaPajakToPembatalan, NotaPembatalanData } from './services/notaPembatalanParser';
 import { exportNotaPembatalanToPDF } from './services/notaPembatalanExport';
@@ -867,17 +868,18 @@ const App: React.FC = () => {
         `Ganti seluruh data SPHR01031A di TiDB dengan ${scopedData.length} baris yang baru diimpor? Data SPHR01300A tidak akan diubah.`
       )
     ) return;
+    const replacingWorkflow = workflowReplacementPending;
     setTidbUploading(true);
     try {
       const resp = await uploadBudgetRecordsToTiDB(
         scopedData,
-        workflowReplacementPending ? { replaceProjectId: 'SPHR01031A' } : undefined
+        replacingWorkflow ? { replaceProjectId: 'SPHR01031A' } : undefined
       );
-      if (workflowReplacementPending) setWorkflowReplacementPending(false);
+      if (replacingWorkflow) setWorkflowReplacementPending(false);
       const sent = resp.sentUnique ?? resp.received ?? scopedData.length;
       const skipped = resp.skippedDuplicates ?? 0;
       alert(
-        `${workflowReplacementPending ? 'Penggantian' : 'Upload'} ke TiDB selesai. Baris terkirim (unik): ${sent}.` +
+        `${replacingWorkflow ? 'Penggantian' : 'Upload'} ke TiDB selesai. Baris terkirim (unik): ${sent}.` +
           (skipped > 0 ? ` Duplikat tidak dikirim: ${skipped}.` : '') +
           ` affectedRows: ${resp.affectedRows ?? '-'}\n\n` +
           `Proyek ${selectedProjectId} akan terpisah saat data di-load kembali (saat API TiDB aktif).`
@@ -2414,6 +2416,13 @@ const App: React.FC = () => {
                 replacementPending={workflowReplacementPending}
                 onReplaceImportedData={handleReplaceWorkflowImport}
                 onReplaceInTiDB={handleUploadToTiDB}
+              />
+            )}
+            {selectedProjectId === 'SPHR01300A' && (
+              <Sphr01300aWorkbookCard
+                canImport={toolsUnlocked}
+                refreshKey={sphrSyncNonce}
+                onEntriesChanged={() => setSphrSyncNonce(previous => previous + 1)}
               />
             )}
 

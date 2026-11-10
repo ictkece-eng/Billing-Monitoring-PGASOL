@@ -203,7 +203,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
 
   return (
     <div className="row g-3 mb-4" aria-label="Workbook SPHR01031A">
-      <div className="col-12 col-xl-6">
+      <div className="col-12">
         <section className="card shadow-sm border-0 h-100" aria-labelledby="dashboard-workbook-title">
           <div className="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
@@ -295,7 +295,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
         </section>
       </div>
 
-      <div className="col-12 col-xl-6">
+      <div className="col-12">
         <section className="card shadow-sm border-0 h-100" aria-labelledby="workflow-workbook-title">
           <div className="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>

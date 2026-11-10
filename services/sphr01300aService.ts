@@ -5,6 +5,7 @@ type EntriesResponse = {
   entries?: Sphr01300aBillingEntry[];
   entry?: Sphr01300aBillingEntry;
   deleted?: number;
+  replaced?: number;
   error?: string;
 };
 
@@ -51,4 +52,15 @@ export const deleteSphr01300aEntriesByPeriod = async (period: string) => {
     throw new Error('Server tidak mengembalikan jumlah data periode yang dihapus');
   }
   return result.deleted;
+};
+
+export const replaceSphr01300aEntries = async (
+  period: string,
+  entries: Omit<Sphr01300aBillingEntry, 'id'>[]
+) => {
+  const result = await request('PUT', { replacePeriod: period, entries });
+  if (typeof result.replaced !== 'number') {
+    throw new Error('Server tidak mengembalikan jumlah data periode yang diganti');
+  }
+  return result.replaced;
 };

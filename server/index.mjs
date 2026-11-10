@@ -356,6 +356,54 @@ app.all('/api/sphr01300a/entries', async (req, res) => {
       return;
     }
 
+    if (req.method === 'PUT' && req.body?.replacePeriod !== undefined) {
+      const period = String(req.body.replacePeriod || '').trim();
+      const entriesRaw = req.body.entries;
+      if (!sphrPeriodPattern.test(period)) {
+        res.status(400).json({ ok: false, error: 'Periode harus berformat YYYY-MM' });
+        return;
+      }
+      if (!Array.isArray(entriesRaw) || entriesRaw.length === 0 || entriesRaw.length > 2500) {
+        res.status(400).json({ ok: false, error: 'Data impor harus berisi 1 sampai 2500 baris' });
+        return;
+      }
+      const entries = entriesRaw.map(normalizeSphrEntry);
+      if (entries.some(entry => entry.period !== period)) {
+        res.status(400).json({ ok: false, error: 'Semua baris impor harus sesuai periode yang dipilih' });
+        return;
+      }
+
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        await connection.query('DELETE FROM sphr01300a_billing_entries WHERE period = ?', [period]);
+        for (const entry of entries) {
+          await connection.query(
+            `INSERT INTO sphr01300a_billing_entries (
+               id, period, pic, area, no_ro_spk, nilai_ro, nilai_actual, nilai_remaining, tanggal_submit_bast,
+               bast_draft_vendor, bast_request_vendor, bast_review_reviewer1, bast_approval_approver,
+               bast_reconfirm_vendor, sa_gr_submission, bast_final_validation, no_sa, nilai_sa
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              crypto.randomUUID(), entry.period, entry.pic, entry.area, entry.noRoSpk, entry.nilaiRo,
+              entry.nilaiActual, entry.nilaiRemaining, entry.tanggalSubmitBast, Number(entry.bastDraftVendor),
+              Number(entry.bastRequestVendor), Number(entry.bastReviewReviewer1), Number(entry.bastApprovalApprover),
+              Number(entry.bastReconfirmVendor), Number(entry.saGrSubmission), Number(entry.bastFinalValidation),
+              entry.noSa, entry.nilaiSa,
+            ]
+          );
+        }
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+      res.json({ ok: true, replaced: entries.length });
+      return;
+    }
+
     if (req.method === 'DELETE') {
       const period = String(req.body?.period || '').trim();
       if (period) {
