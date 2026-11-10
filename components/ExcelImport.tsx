@@ -214,15 +214,32 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
         const bstr = evt.target?.result;
         // Gunakan cellDates: false untuk mendapatkan nilai mentah, lalu diproses manual
         const wb = XLSX.read(bstr, { type: 'binary', cellDates: false });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
 
         // ===== Row-by-row parsing (lebih stabil untuk file dengan header ganda / kolom terpisah Rp + angka) =====
         const normalizeHeader = (h: any) => String(h ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
         const headerToCompact = (h: any) => normalizeHeader(h).replace(/\s+/g, '');
         const headerToAlnum = (h: any) => normalizeHeader(h).replace(/[^a-z0-9]/g, '');
 
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
+        let aoa: any[][] = [];
+        let headerRowOffset = 0;
+        for (const sheetName of wb.SheetNames) {
+          const sheetRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' }) as any[][];
+          const workflowHeaderIndex = sheetRows.findIndex(row => {
+            const headers = new Set(row.map(headerToAlnum));
+            return headers.has('tahapsaatini')
+              && headers.has('paymentstatus')
+              && headers.has('nilaitagihan')
+              && headers.has('periodebulan');
+          });
+          if (workflowHeaderIndex < 0) continue;
+          aoa = sheetRows.slice(workflowHeaderIndex);
+          headerRowOffset = workflowHeaderIndex;
+          break;
+        }
+
+        if (aoa.length === 0 && wb.SheetNames[0]) {
+          aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }) as any[][];
+        }
 
         const mappedData: BudgetRecord[] = [];
         if (aoa.length > 1) {
@@ -275,8 +292,9 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
             return has ? best : 0;
           };
 
+          const isWorkflowSheet = findFirstCol(['tahap saat ini']) !== undefined;
           // Column candidates (exact matches first)
-          const colStatus = findFirstCol(['status']);
+          const colStatus = findFirstCol(['tahap saat ini', 'status']);
           const colNamaUser = findFirstCol(['nama user', 'user', 'nama']);
           const colTim = findFirstCol(['tim', 'team']);
 
@@ -317,20 +335,36 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
           });
 
           // Status2/billing status
-          const colStatus2Exact = findFirstCol(['status2', 'status 2', 'status billing', 'billing status']);
+          const colStatus2Exact = findFirstCol([
+            'status2',
+            'status 2',
+            'status billing',
+            'billing status',
+            ...(isWorkflowSheet ? ['status'] : []),
+          ]);
           const status2PrefixCols = [...new Set([
             ...findColsByAlnumPrefix('status2'),
             ...findColsByAlnumPrefix('statusbilling'),
           ])];
+          const workflowStatus2Labels = new Map<string, string>();
+          if (isWorkflowSheet && colStatus2Exact !== undefined) {
+            for (const row of aoa.slice(1)) {
+              const raw = String(getCell(row, colStatus2Exact) ?? '').replace(/\s+/g, ' ').trim();
+              const key = normalizeStatus2Key(raw);
+              if (key && !workflowStatus2Labels.has(key)) {
+                workflowStatus2Labels.set(key, canonicalizeStatus2(raw));
+              }
+            }
+          }
 
           // Optional columns
           const colNoRO = findFirstCol(['no ro', 'no.ro', 'ro']);
-          const colTglBAST = findFirstCol(['tgl bast', 'tanggal bast', 'tgl bast submit', 'tgl bast-submit bast by ivend']);
-          const colNoBAST = findFirstCol(['no bast', 'no bast / id vendor', 'id vendor']);
-          const colEmailSoftCopy = findFirstCol(['kirim email soft copy']);
-          const colSaNo = findFirstCol(['sa no']);
+          const colTglBAST = findFirstCol(['tgl bast', 'tanggal bast', 'tgl bast submit', 'tgl bast-submit bast by ivend', '4. submit bast']);
+          const colNoBAST = findFirstCol(['no bast', 'no bast / id vendor', 'id vendor', '6. no bast i-vendor']);
+          const colEmailSoftCopy = findFirstCol(['kirim email soft copy', '11. kirim email soft copy']);
+          const colSaNo = findFirstCol(['sa no', '10. sa no']);
           const colTglKirimJKT = findFirstCol(['tgl kirim ke jkt']);
-          const colReviewerVendor = findFirstCol(['reviewer i vendor']);
+          const colReviewerVendor = findFirstCol(['reviewer i vendor', '12. reviewer i-vendor']);
           const colKeterangan = findFirstCol(['keterangan2', 'keterangan']);
 
           for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
@@ -351,6 +385,9 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
             const status2Raw = colStatus2Exact !== undefined
               ? getCell(row, colStatus2Exact)
               : getFirstNonEmpty(row, status2PrefixCols);
+            const status2 = isWorkflowSheet
+              ? workflowStatus2Labels.get(normalizeStatus2Key(status2Raw)) || canonicalizeStatus2(status2Raw ?? 'manual')
+              : canonicalizeStatus2(status2Raw ?? 'manual');
 
             mappedData.push({
               id: `excel-${Date.now()}-${rIdx}`,
@@ -363,14 +400,14 @@ const ExcelImport: React.FC<ExcelImportProps> = ({ onImport, projectId = 'SPHR01
               noRO: String(getCell(row, colNoRO) ?? ''),
               tglBAST: formatExcelValue(getCell(row, colTglBAST) ?? ''),
               noBAST: String(getCell(row, colNoBAST) ?? ''),
-              status2: canonicalizeStatus2(status2Raw ?? 'manual'),
+              status2,
               emailSoftCopy: String(getCell(row, colEmailSoftCopy) ?? ''),
               saNo: String(getCell(row, colSaNo) ?? ''),
               tglKirimJKT: formatExcelValue(getCell(row, colTglKirimJKT) ?? ''),
               reviewerVendor: String(getCell(row, colReviewerVendor) ?? ''),
               keterangan: String(getCell(row, colKeterangan) ?? ''),
               // Excel row number (1-based). aoa[0] is the header row.
-              sourceRow: rIdx + 1,
+              sourceRow: headerRowOffset + rIdx + 1,
             });
           }
         }
