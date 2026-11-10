@@ -141,10 +141,11 @@ interface Sphr01300aWorkbookCardProps {
 }
 
 const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImport, refreshKey, onEntriesChanged }) => {
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [counts, setCounts] = useState<MonthCount>({});
   const [error, setError] = useState('');
-  const [loadingPeriod, setLoadingPeriod] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(MONTHS[0].period);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,7 +172,7 @@ const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImpo
     const month = MONTHS.find(item => item.period === period);
     if (!month) return;
     setError('');
-    setLoadingPeriod(period);
+    setLoading(true);
     try {
       if (!normalizeHeader(file.name).includes(normalizeHeader(month.filenameMonth))) {
         throw new Error(`Pilih file ${month.label} (nama file harus memuat "${month.filenameMonth}").`);
@@ -196,9 +197,8 @@ const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImpo
     } catch (reason) {
       setError(`Impor ${month.label} gagal: ${String(reason?.message || reason)}`);
     } finally {
-      setLoadingPeriod(null);
-      const input = inputRefs.current[period];
-      if (input) input.value = '';
+      setLoading(false);
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
@@ -213,35 +213,40 @@ const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImpo
       </div>
       <div className="card-body">
         {error && <div className="alert alert-danger py-2 small" role="alert">{error}</div>}
-        <div className="row g-3">
-          {MONTHS.map(month => (
-            <div className="col-12 col-md-4" key={month.period}>
-              <input
-                ref={element => { inputRefs.current[month.period] = element; }}
-                type="file"
-                accept=".xlsx,.xls"
-                className="d-none"
-                onChange={event => void importMonth(month.period, event.target.files?.[0])}
-                disabled={!canImport || loadingPeriod !== null}
-              />
-              <div className="border rounded-3 p-3 h-100 d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div>
-                  <div className="fw-semibold">{month.label}</div>
-                  <div className="small text-muted">{counts[month.period] ?? '—'} baris tersimpan</div>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-outline-success btn-sm"
-                  onClick={() => inputRefs.current[month.period]?.click()}
-                  disabled={!canImport || loadingPeriod !== null}
-                  title={canImport ? `Impor file ${month.label}` : 'Masuk Admin untuk mengimpor'}
-                >
-                  <i className="bi bi-file-earmark-arrow-up me-1" aria-hidden="true" />
-                  {loadingPeriod === month.period ? 'Memproses…' : `Impor ${month.label}`}
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="row g-3 align-items-end">
+          <div className="col-12 col-md-5">
+            <label htmlFor="sphr01300a-import-period" className="form-label small fw-semibold">Bulan data</label>
+            <select
+              id="sphr01300a-import-period"
+              className="form-select"
+              value={selectedPeriod}
+              onChange={event => setSelectedPeriod(event.target.value)}
+              disabled={loading}
+            >
+              {MONTHS.map(month => <option key={month.period} value={month.period}>{month.label}</option>)}
+            </select>
+            <div className="form-text">{counts[selectedPeriod] ?? '—'} baris tersimpan untuk bulan ini</div>
+          </div>
+          <div className="col-12 col-md-auto">
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="d-none"
+              onChange={event => void importMonth(selectedPeriod, event.target.files?.[0])}
+              disabled={!canImport || loading}
+            />
+            <button
+              type="button"
+              className="btn btn-outline-success"
+              onClick={() => inputRef.current?.click()}
+              disabled={!canImport || loading}
+              title={canImport ? `Pilih file ${MONTHS.find(month => month.period === selectedPeriod)?.label}` : 'Masuk Admin untuk mengimpor'}
+            >
+              <i className="bi bi-file-earmark-arrow-up me-1" aria-hidden="true" />
+              {loading ? 'Memproses…' : 'Pilih Excel & Impor'}
+            </button>
+          </div>
         </div>
         {!canImport && <div className="form-text mt-2">Masuk Admin untuk mengaktifkan tombol impor bulanan.</div>}
       </div>

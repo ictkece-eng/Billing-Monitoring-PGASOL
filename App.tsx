@@ -2419,11 +2419,25 @@ const App: React.FC = () => {
               />
             )}
             {selectedProjectId === 'SPHR01300A' && (
-              <Sphr01300aWorkbookCard
-                canImport={toolsUnlocked}
-                refreshKey={sphrSyncNonce}
-                onEntriesChanged={() => setSphrSyncNonce(previous => previous + 1)}
-              />
+              <>
+                <Sphr01300aWorkbookCard
+                  canImport={toolsUnlocked}
+                  refreshKey={sphrSyncNonce}
+                  onEntriesChanged={() => setSphrSyncNonce(previous => previous + 1)}
+                />
+                <section className="card shadow-sm border-0 mb-4" aria-labelledby="sphr01300a-monitoring-title">
+                  <div className="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div>
+                      <h2 id="sphr01300a-monitoring-title" className="h6 fw-bold mb-1">Monitoring Billing</h2>
+                      <p className="small text-muted mb-0">Buka data bulanan, perbarui tahapan BAST, dan kelola entri SPHR01300A.</p>
+                    </div>
+                    <button type="button" className="btn btn-primary" onClick={() => setActivePage('sphr01300a')}>
+                      <i className="bi bi-table me-1" aria-hidden="true" />
+                      Buka Monitoring Billing
+                    </button>
+                  </div>
+                </section>
+              </>
             )}
 
             {/* Contract Budget Card */}

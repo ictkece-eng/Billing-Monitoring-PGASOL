@@ -25,6 +25,58 @@ interface DashboardSnapshot {
   statuses: DashboardStatusRow[];
 }
 
+const DASHBOARD_STORAGE_KEY = 'pgasol.sphr01031a.dashboard-workbook.v1';
+const WORKFLOW_STORAGE_KEY = 'pgasol.sphr01031a.workflow-workbook.v1';
+
+const readStoredValue = <T,>(
+  key: string,
+  isValid: (value: unknown) => value is T
+): { value: T | null; error: string } => {
+  try {
+    const stored = localStorage.getItem(key);
+    if (!stored) return { value: null, error: '' };
+    const parsed: unknown = JSON.parse(stored);
+    if (!isValid(parsed)) throw new Error('Format data tersimpan tidak sesuai.');
+    return { value: parsed, error: '' };
+  } catch (error) {
+    return {
+      value: null,
+      error: `Gagal memuat data workbook tersimpan: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+};
+
+const isDashboardSnapshot = (value: unknown): value is DashboardSnapshot => {
+  if (!value || typeof value !== 'object') return false;
+  const snapshot = value as Partial<DashboardSnapshot>;
+  return Number.isFinite(snapshot.totalBilling)
+    && Number.isFinite(snapshot.totalRo)
+    && Number.isFinite(snapshot.rowCount)
+    && Number.isFinite(snapshot.withSa)
+    && Array.isArray(snapshot.trend)
+    && snapshot.trend.every(row =>
+      typeof row.period === 'string'
+      && Number.isFinite(row.billing)
+      && Number.isFinite(row.ro)
+      && Number.isFinite(row.difference)
+    )
+    && Array.isArray(snapshot.statuses)
+    && snapshot.statuses.every(row =>
+      typeof row.status === 'string'
+      && Number.isFinite(row.count)
+      && Number.isFinite(row.billing)
+    );
+};
+
+const isWorkflowTable = (value: unknown): value is WorkflowTableData => {
+  if (!value || typeof value !== 'object') return false;
+  const table = value as Partial<WorkflowTableData>;
+  return Array.isArray(table.headers)
+    && table.headers.every(header => typeof header === 'string')
+    && Array.isArray(table.rows)
+    && table.rows.every(row => Array.isArray(row) && row.every(cell => typeof cell === 'string'));
+};
+
 interface WorkbookOverviewCardsProps {
   canImport: boolean;
   canReplaceInTiDB: boolean;
@@ -159,9 +211,12 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
   onReplaceInTiDB,
 }) => {
   const dashboardFileRef = useRef<HTMLInputElement>(null);
-  const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(null);
-  const [dashboardError, setDashboardError] = useState('');
-  const [workflowTable, setWorkflowTable] = useState<WorkflowTableData | null>(null);
+  const [dashboardStored] = useState(() => readStoredValue(DASHBOARD_STORAGE_KEY, isDashboardSnapshot));
+  const [workflowStored] = useState(() => readStoredValue(WORKFLOW_STORAGE_KEY, isWorkflowTable));
+  const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(dashboardStored.value);
+  const [dashboardError, setDashboardError] = useState(dashboardStored.error);
+  const [workflowTable, setWorkflowTable] = useState<WorkflowTableData | null>(workflowStored.value);
+  const [workflowError, setWorkflowError] = useState(workflowStored.error);
   const [workflowQuery, setWorkflowQuery] = useState('');
   const [workflowPage, setWorkflowPage] = useState(0);
 
@@ -186,12 +241,24 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
     setDashboardError('');
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
-      setDashboard(parseDashboardWorkbook(workbook));
+      const snapshot = parseDashboardWorkbook(workbook);
+      localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(snapshot));
+      setDashboard(snapshot);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setDashboardError(`Gagal membaca Dashboard.xlsx: ${message}`);
     } finally {
       event.target.value = '';
+    }
+  };
+
+  const handleWorkflowTableImport = (table: WorkflowTableData) => {
+    setWorkflowError('');
+    try {
+      localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(table));
+      setWorkflowTable(table);
+    } catch (error) {
+      setWorkflowError(`Data Database Workflow berhasil dibaca, tetapi gagal disimpan untuk refresh: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -208,7 +275,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
           <div className="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
               <h2 id="dashboard-workbook-title" className="h6 fw-bold mb-1">Dashboard</h2>
-              <div className="small text-muted">Snapshot KPI, tren bulanan, dan status dari Dashboard.xlsx</div>
+              <div className="small text-muted">Snapshot KPI, tren bulanan, dan status dari Dashboard.xlsx; hasil impor tersimpan di browser ini saat halaman di-refresh.</div>
             </div>
             <div>
               <input
@@ -300,11 +367,11 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
           <div className="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
               <h2 id="workflow-workbook-title" className="h6 fw-bold mb-1">Database Workflow</h2>
-              <div className="small text-muted">Tabel master dari Database Workflow.xlsx</div>
+              <div className="small text-muted">Tabel master dari Database Workflow.xlsx; hasil impor tersimpan di browser ini saat halaman di-refresh.</div>
             </div>
             <ExcelImport
               onImport={handleWorkflowImport}
-              onWorkflowTableImport={setWorkflowTable}
+              onWorkflowTableImport={handleWorkflowTableImport}
               projectId="SPHR01031A"
               disabled={!canImport}
               workflowOnly
@@ -313,6 +380,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
             />
           </div>
           <div className="card-body">
+            {workflowError && <div className="alert alert-danger py-2 small" role="alert">{workflowError}</div>}
             <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
               <div><span className="small text-muted d-block">Transaksi</span><strong>{data.length.toLocaleString('id-ID')}</strong></div>
               <div><span className="small text-muted d-block">Total Nilai Tagihan</span><strong>{formatCurrency(totalBilling)}</strong></div>
