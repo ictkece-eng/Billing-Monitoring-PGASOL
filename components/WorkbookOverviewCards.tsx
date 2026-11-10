@@ -25,8 +25,28 @@ interface DashboardSnapshot {
   statuses: DashboardStatusRow[];
 }
 
+interface WorkflowPivotTeam {
+  team: string;
+  users: Array<{ name: string; amounts: Map<string, number> }>;
+  totals: Map<string, number>;
+}
+
 const DASHBOARD_STORAGE_KEY = 'pgasol.sphr01031a.dashboard-workbook.v1';
 const WORKFLOW_STORAGE_KEY = 'pgasol.sphr01031a.workflow-workbook.v1';
+const MONTH_NAMES: Record<string, number> = {
+  jan: 0, januari: 0, january: 0,
+  feb: 1, februari: 1, february: 1,
+  mar: 2, maret: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4, mei: 4,
+  jun: 5, juni: 5, june: 5,
+  jul: 6, juli: 6, july: 6,
+  aug: 7, agu: 7, agustus: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, okt: 9, oktober: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, des: 11, desember: 11, december: 11,
+};
 
 const readStoredValue = <T,>(
   key: string,
@@ -106,6 +126,101 @@ const readAmount = (value: unknown): number => {
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
+
+const normalizePivotHeader = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const parsePivotPeriod = (value: string): string | null => {
+  const text = value.trim().toLowerCase();
+  const iso = text.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (iso) {
+    const month = Number(iso[2]);
+    return month >= 1 && month <= 12 ? `${iso[1]}-${String(month).padStart(2, '0')}` : null;
+  }
+  const date = text.match(/^(?:(\d{1,2})[-\s/]*)?([a-z]+)[-\s/,]*(\d{2,4})$/);
+  if (date) {
+    const month = MONTH_NAMES[date[2]];
+    const year = Number(date[3]) < 100 ? 2000 + Number(date[3]) : Number(date[3]);
+    if (month !== undefined && year >= 1900 && year <= 9999) {
+      return `${year}-${String(month + 1).padStart(2, '0')}`;
+    }
+  }
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) {
+    const dateValue = new Date(parsed);
+    return `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return null;
+};
+
+const formatPivotPeriod = (period: string) => {
+  const [year, month] = period.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: '2-digit' })
+    .format(new Date(year, month - 1, 1));
+};
+
+const parsePivotAmount = (value: string): number => {
+  const text = value.trim();
+  if (!text) return 0;
+  const negative = /^\s*-/.test(text) || /^\(.*\)$/.test(text);
+  const digits = text.replace(/[^\d]/g, '');
+  const amount = Number(digits);
+  return Number.isSafeInteger(amount) ? (negative ? -amount : amount) : 0;
+};
+
+const buildWorkflowPivot = (table: WorkflowTableData) => {
+  const headers = table.headers.map(normalizePivotHeader);
+  const teamColumn = headers.findIndex(header => header === 'tim' || header === 'team');
+  const userColumn = headers.findIndex(header => header === 'namauser' || header === 'user');
+  const periodColumn = headers.findIndex(header => header === 'periodebulan' || header === 'periode');
+  const amountColumn = headers.findIndex(header => header === 'nilaitagihan');
+  if ([teamColumn, userColumn, periodColumn, amountColumn].some(column => column < 0)) return null;
+
+  const periods = new Set<string>();
+  const teams = new Map<string, Map<string, Map<string, number>>>();
+  table.rows.forEach(row => {
+    const period = parsePivotPeriod(row[periodColumn] || '');
+    if (!period) return;
+    const team = row[teamColumn]?.trim() || 'No Team';
+    const user = row[userColumn]?.trim() || 'Unknown';
+    const amount = parsePivotAmount(row[amountColumn] || '');
+    periods.add(period);
+    let users = teams.get(team);
+    if (!users) {
+      users = new Map();
+      teams.set(team, users);
+    }
+    let userAmounts = users.get(user);
+    if (!userAmounts) {
+      userAmounts = new Map();
+      users.set(user, userAmounts);
+    }
+    userAmounts.set(period, (userAmounts.get(period) || 0) + amount);
+  });
+
+  const sortedPeriods = [...periods].sort();
+  const rows: WorkflowPivotTeam[] = [...teams.entries()]
+    .sort(([teamA], [teamB]) => teamA.localeCompare(teamB, 'id'))
+    .map(([team, users]) => {
+      const teamTotals = new Map<string, number>();
+      const sortedUsers = [...users.entries()]
+        .sort(([userA], [userB]) => userA.localeCompare(userB, 'id'))
+        .map(([name, amounts]) => {
+          for (const [period, amount] of amounts) {
+            teamTotals.set(period, (teamTotals.get(period) || 0) + amount);
+          }
+          return { name, amounts };
+        });
+      return { team, users: sortedUsers, totals: teamTotals };
+    });
+
+  const grandTotals = new Map<string, number>();
+  rows.forEach(row => {
+    for (const [period, amount] of row.totals) {
+      grandTotals.set(period, (grandTotals.get(period) || 0) + amount);
+    }
+  });
+  return { periods: sortedPeriods, teams: rows, grandTotals };
+};
 
 const formatPeriod = (value: unknown): string => {
   if (typeof value === 'number') {
@@ -234,6 +349,10 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
     (workflowPage + 1) * workflowPageSize
   );
   const totalBilling = data.reduce((total, record) => total + (Number.isFinite(record.nilaiTagihan) ? record.nilaiTagihan : 0), 0);
+  const workflowPivot = useMemo(
+    () => workflowTable ? buildWorkflowPivot(workflowTable) : null,
+    [workflowTable]
+  );
 
   const handleDashboardFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -439,6 +558,78 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
                   </div>
                 </div>
               </>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="col-12">
+        <section className="card shadow-sm border-0 h-100" aria-labelledby="workflow-pivot-title">
+          <div className="card-header bg-white">
+            <h2 id="workflow-pivot-title" className="h6 fw-bold mb-1">Pivot Nilai Tagihan per Tim, User, dan Periode</h2>
+            <div className="small text-muted">Sumber: Database Workflow (MASTER) · Nilai diringkas dengan SUM · Ikuti hasil impor Database Workflow.</div>
+          </div>
+          <div className="card-body">
+            {!workflowTable ? (
+              <div className="text-center text-muted small py-4">
+                Impor Database Workflow.xlsx untuk membuat pivot nilai tagihan.
+              </div>
+            ) : !workflowPivot ? (
+              <div className="alert alert-warning py-2 small mb-0" role="alert">
+                Pivot tidak dapat dibuat karena kolom Tim, Nama User, Periode Bulan, atau Nilai Tagihan tidak ditemukan.
+              </div>
+            ) : workflowPivot.periods.length === 0 ? (
+              <div className="text-center text-muted small py-4">Tidak ada periode yang dapat dibaca pada data workflow.</div>
+            ) : (
+              <div className="table-responsive border rounded" style={{ maxHeight: 520 }}>
+                <table className="table table-sm table-hover align-middle mb-0" style={{ minWidth: 720 }}>
+                  <thead className="table-primary sticky-top">
+                    <tr>
+                      <th className="text-nowrap">Tim</th>
+                      <th className="text-nowrap">Nama User</th>
+                      {workflowPivot.periods.map(period => (
+                        <th key={period} className="text-end text-nowrap">{formatPivotPeriod(period)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workflowPivot.teams.map(team => (
+                      <React.Fragment key={team.team}>
+                        <tr className="table-light">
+                          <th colSpan={workflowPivot.periods.length + 2}>{team.team}</th>
+                        </tr>
+                        {team.users.map(user => (
+                          <tr key={`${team.team}-${user.name}`}>
+                            <td className="text-muted">{team.team}</td>
+                            <td className="text-nowrap">{user.name}</td>
+                            {workflowPivot.periods.map(period => (
+                              <td key={period} className="text-end text-nowrap">
+                                {(user.amounts.get(period) || 0).toLocaleString('en-US')}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                        <tr className="table-primary fw-bold">
+                          <td colSpan={2}>{team.team} Total</td>
+                          {workflowPivot.periods.map(period => (
+                            <td key={period} className="text-end text-nowrap">
+                              {(team.totals.get(period) || 0).toLocaleString('en-US')}
+                            </td>
+                          ))}
+                        </tr>
+                      </React.Fragment>
+                    ))}
+                    <tr className="table-dark fw-bold">
+                      <td colSpan={2}>Grand Total</td>
+                      {workflowPivot.periods.map(period => (
+                        <td key={period} className="text-end text-nowrap">
+                          {(workflowPivot.grandTotals.get(period) || 0).toLocaleString('en-US')}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>

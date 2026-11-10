@@ -3,15 +3,23 @@ import * as XLSX from 'xlsx';
 import type { Sphr01300aBillingEntry } from '../types';
 import { fetchSphr01300aEntries, replaceSphr01300aEntries } from '../services/sphr01300aService';
 
-const MONTHS = [
-  { period: '2026-08', label: 'Agustus 2026', filenameMonth: 'agustus' },
-  { period: '2026-09', label: 'September 2026', filenameMonth: 'september' },
-  { period: '2026-10', label: 'Oktober 2026', filenameMonth: 'oktober' },
-] as const;
+const monthNames: Record<string, number> = {
+  januari: 1, january: 1, jan: 1,
+  februari: 2, february: 2, feb: 2,
+  maret: 3, march: 3, mar: 3,
+  april: 4, apr: 4,
+  mei: 5, may: 5,
+  juni: 6, june: 6, jun: 6,
+  juli: 7, july: 7, jul: 7,
+  agustus: 8, august: 8, agu: 8, aug: 8,
+  september: 9, sep: 9,
+  oktober: 10, october: 10, okt: 10, oct: 10,
+  november: 11, nov: 11,
+  desember: 12, december: 12, des: 12, dec: 12,
+};
 
 type EntryDraft = Omit<Sphr01300aBillingEntry, 'id'>;
 type StageKey = Exclude<keyof EntryDraft, 'period' | 'pic' | 'area' | 'noRoSpk' | 'nilaiRo' | 'nilaiActual' | 'nilaiRemaining' | 'tanggalSubmitBast' | 'noSa' | 'nilaiSa'>;
-type MonthCount = Record<string, number>;
 
 const normalizeHeader = (value: unknown) =>
   String(value ?? '')
@@ -48,6 +56,36 @@ const parseDate = (value: unknown): string => {
 
 const findColumn = (headers: string[], matches: (header: string) => boolean) =>
   headers.findIndex(header => matches(header));
+
+const currentPeriod = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const formatMonth = (period: string) => {
+  const [year, month] = period.split('-').map(Number);
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' })
+    .format(new Date(year, month - 1, 1));
+};
+
+const findWorkbookPeriod = (workbook: XLSX.WorkBook): string | null => {
+  let detectedPeriod: string | null = null;
+  for (const sheetName of workbook.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      header: 1,
+      defval: null,
+      raw: true,
+    }) as unknown[][];
+    for (const row of rows.slice(0, 6)) {
+      const title = normalizeHeader(row.filter(value => value !== null && value !== '').join(' '));
+      const match = title.match(/monitoringbillingperiode([a-z]+)(\d{4})/);
+      if (!match) continue;
+      const month = monthNames[match[1]];
+      if (month) detectedPeriod = `${match[2]}-${String(month).padStart(2, '0')}`;
+    }
+  }
+  return detectedPeriod;
+};
 
 const parseMonthlyWorkbook = (workbook: XLSX.WorkBook, period: string): EntryDraft[] => {
   for (const sheetName of workbook.SheetNames) {
@@ -142,60 +180,63 @@ interface Sphr01300aWorkbookCardProps {
 
 const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImport, refreshKey, onEntriesChanged }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [counts, setCounts] = useState<MonthCount>({});
+  const [storedCount, setStoredCount] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(MONTHS[0].period);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(currentPeriod);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all(MONTHS.map(async month => {
-      const entries = await fetchSphr01300aEntries(month.period);
-      return [month.period, entries.length] as const;
-    }))
-      .then(result => {
-        if (!cancelled) {
-          setCounts(Object.fromEntries(result));
-          setError('');
-        }
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedPeriod)) {
+      setStoredCount(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    setStoredCount(null);
+    fetchSphr01300aEntries(selectedPeriod)
+      .then(entries => {
+        if (!cancelled) setStoredCount(entries.length);
       })
       .catch(reason => {
-        if (!cancelled) setError(`Gagal memuat ringkasan bulan: ${String(reason?.message || reason)}`);
+        if (!cancelled) setError(`Gagal memuat jumlah data ${formatMonth(selectedPeriod)}: ${String(reason?.message || reason)}`);
       });
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, selectedPeriod]);
 
   const importMonth = async (period: string, file?: File) => {
     if (!file) return;
-    const month = MONTHS.find(item => item.period === period);
-    if (!month) return;
     setError('');
     setLoading(true);
     try {
-      if (!normalizeHeader(file.name).includes(normalizeHeader(month.filenameMonth))) {
-        throw new Error(`Pilih file ${month.label} (nama file harus memuat "${month.filenameMonth}").`);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+        throw new Error('Pilih bulan dan tahun terlebih dahulu.');
       }
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+      const workbookPeriod = findWorkbookPeriod(workbook);
+      if (workbookPeriod && workbookPeriod !== period) {
+        throw new Error(`Periode pada workbook adalah ${formatMonth(workbookPeriod)}, bukan ${formatMonth(period)}.`);
+      }
       const entries = parseMonthlyWorkbook(workbook, period);
       const amountRo = entries.reduce((sum, entry) => sum + entry.nilaiRo, 0);
       const amountActual = entries.reduce((sum, entry) => sum + entry.nilaiActual, 0);
       const confirmMessage = [
-        `Ganti data ${month.label}?`,
+        `Ganti data ${formatMonth(period)}?`,
         `${entries.length} baris akan disimpan.`,
         `Total Nilai RO: ${formatCurrency(amountRo)}.`,
         `Total Nilai Actual: ${formatCurrency(amountActual)}.`,
-        `Data lama bulan ini (jika ada): ${counts[period] || 0} baris.`,
+        `Data lama bulan ini (jika ada): ${storedCount || 0} baris.`,
       ].join('\n');
       if (!window.confirm(confirmMessage)) return;
 
       const replaced = await replaceSphr01300aEntries(period, entries);
-      setCounts(previous => ({ ...previous, [period]: replaced }));
+      setStoredCount(replaced);
       onEntriesChanged();
-      alert(`Impor ${month.label} berhasil: ${replaced} baris.`);
+      alert(`Impor ${formatMonth(period)} berhasil: ${replaced} baris.`);
     } catch (reason) {
-      setError(`Impor ${month.label} gagal: ${String(reason?.message || reason)}`);
+      setError(`Impor ${formatMonth(period)} gagal: ${String(reason?.message || reason)}`);
     } finally {
       setLoading(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -207,7 +248,7 @@ const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImpo
       <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
           <h2 id="sphr-workbook-title" className="h6 fw-bold mb-1">Impor Monitoring Billing SPHR01300A</h2>
-          <div className="small text-muted">Pilih file Excel sesuai bulan; impor hanya mengganti data pada periode tersebut.</div>
+          <div className="small text-muted">Pilih bulan dan tahun, lalu pilih file Excel. Impor hanya mengganti data pada periode tersebut.</div>
         </div>
         <span className="badge text-bg-light border">Pagu tetap Rp 182.227.686.800</span>
       </div>
@@ -216,16 +257,18 @@ const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImpo
         <div className="row g-3 align-items-end">
           <div className="col-12 col-md-5">
             <label htmlFor="sphr01300a-import-period" className="form-label small fw-semibold">Bulan data</label>
-            <select
+            <input
               id="sphr01300a-import-period"
-              className="form-select"
+              type="month"
+              className="form-control"
               value={selectedPeriod}
               onChange={event => setSelectedPeriod(event.target.value)}
               disabled={loading}
-            >
-              {MONTHS.map(month => <option key={month.period} value={month.period}>{month.label}</option>)}
-            </select>
-            <div className="form-text">{counts[selectedPeriod] ?? '—'} baris tersimpan untuk bulan ini</div>
+              required
+            />
+            <div className="form-text">
+              {storedCount === null ? 'Memuat jumlah data…' : `${storedCount.toLocaleString('id-ID')} baris tersimpan untuk ${formatMonth(selectedPeriod)}`}
+            </div>
           </div>
           <div className="col-12 col-md-auto">
             <input
@@ -234,14 +277,14 @@ const Sphr01300aWorkbookCard: React.FC<Sphr01300aWorkbookCardProps> = ({ canImpo
               accept=".xlsx,.xls"
               className="d-none"
               onChange={event => void importMonth(selectedPeriod, event.target.files?.[0])}
-              disabled={!canImport || loading}
+              disabled={!canImport || loading || !/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedPeriod)}
             />
             <button
               type="button"
               className="btn btn-outline-success"
               onClick={() => inputRef.current?.click()}
-              disabled={!canImport || loading}
-              title={canImport ? `Pilih file ${MONTHS.find(month => month.period === selectedPeriod)?.label}` : 'Masuk Admin untuk mengimpor'}
+              disabled={!canImport || loading || !/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedPeriod)}
+              title={canImport ? `Pilih file Excel untuk ${formatMonth(selectedPeriod)}` : 'Masuk Admin untuk mengimpor'}
             >
               <i className="bi bi-file-earmark-arrow-up me-1" aria-hidden="true" />
               {loading ? 'Memproses…' : 'Pilih Excel & Impor'}
