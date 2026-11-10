@@ -177,14 +177,20 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
   const statusDistribution = Object.entries(
     data.reduce((acc, curr) => {
       const s2 = canonicalizeStatus2(curr.status2);
-      acc[s2] = (acc[s2] || 0) + curr.nilaiTagihan;
+      const current = acc[s2] || { value: 0, count: 0 };
+      current.value += curr.nilaiTagihan;
+      current.count += 1;
+      acc[s2] = current;
       return acc;
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name, value: value as number }));
+    }, {} as Record<string, { value: number; count: number }>)
+  ).map(([name, summary]) => ({ name, ...summary }));
 
   const statusDistributionForChart = statusDistribution
     .slice()
-    .sort((a, b) => (b.value as number) - (a.value as number));
+    .sort((a, b) => b.value - a.value);
+
+  const statusTotal = statusDistributionForChart.reduce((total, status) => total + status.value, 0);
+  const statusChartHeight = Math.max(360, statusDistributionForChart.length * 30 + 16);
 
   const formatCurrency = (val: any) => `Rp ${new Intl.NumberFormat('id-ID').format(val)}`;
 
@@ -272,12 +278,12 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
               <div className="small text-uppercase text-muted fw-bold" style={{ letterSpacing: '.08em' }}>Spending by Billing Status</div>
               <span className="badge text-bg-info-subtle border border-info-subtle text-info">Bar</span>
             </div>
-            <div style={{ height: 360 }}>
+            <div style={{ height: statusChartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={statusDistributionForChart} layout="vertical" margin={{ top: 6, right: 28, bottom: 6, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={formatCurrencyCompact} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" width={240} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateLabel(v, 34)} />
+                  <YAxis dataKey="name" type="category" width={240} interval={0} tick={{ fontSize: 10 }} tickFormatter={(v) => truncateLabel(v, 42)} />
                   <Tooltip formatter={formatCurrency} labelFormatter={(label) => `Status: ${label}`} contentStyle={{ borderRadius: 10, borderColor: '#e2e8f0' }} />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
                     {statusDistributionForChart.map((_, index) => (
@@ -287,6 +293,29 @@ const DashboardCharts: React.FC<ChartsProps> = ({ data }) => {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div className="small text-uppercase text-muted fw-bold mt-3 mb-2">Rincian per status billing</div>
+            <div className="row g-2 mt-2" aria-label="Rincian pengeluaran per status billing">
+              {statusDistributionForChart.map((item, index) => {
+                const percentage = statusTotal > 0 ? (item.value / statusTotal) * 100 : 0;
+                return (
+                  <div className="col-12 col-md-6" key={item.name}>
+                    <div className="d-flex align-items-start gap-2 border rounded-2 p-2 h-100">
+                      <span
+                        className="rounded-circle flex-shrink-0 mt-1"
+                        aria-hidden="true"
+                        style={{ width: 12, height: 12, backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <div className="min-w-0">
+                        <div className="small fw-semibold text-break">{item.name}</div>
+                        <div className="small text-muted">
+                          {formatCurrencyCompact(item.value)} · {item.count} transaksi · {percentage.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div className="small text-muted mt-2">Tip: hover untuk detail. (Drill-down klik bar bisa ditambahkan di tahap berikutnya.)</div>
           </div>
