@@ -97,6 +97,36 @@ const isWorkflowTable = (value: unknown): value is WorkflowTableData => {
     && table.rows.every(row => Array.isArray(row) && row.every(cell => typeof cell === 'string'));
 };
 
+const normalizeWorkflowStatus = (table: WorkflowTableData) => {
+  const statusColumn = table.headers.findIndex(header => header.trim().toLowerCase() === 'status');
+  if (statusColumn < 0) return { table, changed: false };
+
+  let changed = false;
+  const rows = table.rows.map(row => {
+    if (row[statusColumn]?.trim().toLowerCase() !== 'manual') return row;
+    changed = true;
+    return row.map((value, index) => index === statusColumn ? 'Paid' : value);
+  });
+  return { table: changed ? { ...table, rows } : table, changed };
+};
+
+const readStoredWorkflowTable = () => {
+  const stored = readStoredValue(WORKFLOW_STORAGE_KEY, isWorkflowTable);
+  if (!stored.value) return stored;
+  const normalized = normalizeWorkflowStatus(stored.value);
+  if (!normalized.changed) return { ...stored, value: normalized.table };
+
+  try {
+    localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(normalized.table));
+    return { ...stored, value: normalized.table };
+  } catch (error) {
+    return {
+      value: normalized.table,
+      error: `Data STATUS manual ditampilkan sebagai Paid, tetapi gagal menyimpan perubahan lokal: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+};
+
 interface WorkbookOverviewCardsProps {
   canImport: boolean;
   canReplaceInTiDB: boolean;
@@ -327,7 +357,7 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
 }) => {
   const dashboardFileRef = useRef<HTMLInputElement>(null);
   const [dashboardStored] = useState(() => readStoredValue(DASHBOARD_STORAGE_KEY, isDashboardSnapshot));
-  const [workflowStored] = useState(() => readStoredValue(WORKFLOW_STORAGE_KEY, isWorkflowTable));
+  const [workflowStored] = useState(readStoredWorkflowTable);
   const [dashboard, setDashboard] = useState<DashboardSnapshot | null>(dashboardStored.value);
   const [dashboardError, setDashboardError] = useState(dashboardStored.error);
   const [workflowTable, setWorkflowTable] = useState<WorkflowTableData | null>(workflowStored.value);
@@ -374,8 +404,9 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
   const handleWorkflowTableImport = (table: WorkflowTableData) => {
     setWorkflowError('');
     try {
-      localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(table));
-      setWorkflowTable(table);
+      const normalized = normalizeWorkflowStatus(table).table;
+      localStorage.setItem(WORKFLOW_STORAGE_KEY, JSON.stringify(normalized));
+      setWorkflowTable(normalized);
     } catch (error) {
       setWorkflowError(`Data Database Workflow berhasil dibaca, tetapi gagal disimpan untuk refresh: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -390,8 +421,12 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
   return (
     <div className="row g-3 mb-4" aria-label="Workbook SPHR01031A">
       <div className="col-12">
-        <section className="card shadow-sm border-0 h-100" aria-labelledby="dashboard-workbook-title">
-          <div className="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <section
+          className="card shadow-sm border-0 h-100"
+          style={{ borderTop: '4px solid #0d6efd' }}
+          aria-labelledby="dashboard-workbook-title"
+        >
+          <div className="card-header d-flex flex-wrap align-items-center justify-content-between gap-2" style={{ backgroundColor: '#eaf2ff' }}>
             <div>
               <h2 id="dashboard-workbook-title" className="h6 fw-bold mb-1">Dashboard</h2>
               <div className="small text-muted">Snapshot KPI, tren bulanan, dan status dari Dashboard.xlsx; hasil impor tersimpan di browser ini saat halaman di-refresh.</div>
@@ -482,8 +517,12 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
       </div>
 
       <div className="col-12">
-        <section className="card shadow-sm border-0 h-100" aria-labelledby="workflow-workbook-title">
-          <div className="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <section
+          className="card shadow-sm border-0 h-100"
+          style={{ borderTop: '4px solid #198754' }}
+          aria-labelledby="workflow-workbook-title"
+        >
+          <div className="card-header d-flex flex-wrap align-items-center justify-content-between gap-2" style={{ backgroundColor: '#e8f5ee' }}>
             <div>
               <h2 id="workflow-workbook-title" className="h6 fw-bold mb-1">Database Workflow</h2>
               <div className="small text-muted">Tabel master dari Database Workflow.xlsx; hasil impor tersimpan di browser ini saat halaman di-refresh.</div>
@@ -564,8 +603,12 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
       </div>
 
       <div className="col-12">
-        <section className="card shadow-sm border-0 h-100" aria-labelledby="workflow-pivot-title">
-          <div className="card-header bg-white">
+        <section
+          className="card shadow-sm border-0 h-100"
+          style={{ borderTop: '4px solid #6f42c1' }}
+          aria-labelledby="workflow-pivot-title"
+        >
+          <div className="card-header" style={{ backgroundColor: '#f1ebfb' }}>
             <h2 id="workflow-pivot-title" className="h6 fw-bold mb-1">Pivot Nilai Tagihan per Tim, User, dan Periode</h2>
             <div className="small text-muted">Sumber: Database Workflow (MASTER) · Nilai diringkas dengan SUM · Ikuti hasil impor Database Workflow.</div>
           </div>
