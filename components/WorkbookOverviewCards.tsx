@@ -199,6 +199,23 @@ const parsePivotAmount = (value: string): number => {
   return Number.isSafeInteger(amount) ? (negative ? -amount : amount) : 0;
 };
 
+const buildWorkflowStatusRows = (table: WorkflowTableData): DashboardStatusRow[] => {
+  const headers = table.headers.map(normalizePivotHeader);
+  const statusColumn = headers.findIndex(header => header === 'status');
+  const amountColumn = headers.findIndex(header => header === 'nilaitagihan');
+  if (statusColumn < 0 || amountColumn < 0) return [];
+
+  const statusTotals = new Map<string, DashboardStatusRow>();
+  table.rows.forEach(row => {
+    const status = row[statusColumn]?.trim() || 'Status Kosong';
+    const current = statusTotals.get(status) || { status, count: 0, billing: 0 };
+    current.count += 1;
+    current.billing += parsePivotAmount(row[amountColumn] || '');
+    statusTotals.set(status, current);
+  });
+  return [...statusTotals.values()];
+};
+
 const buildWorkflowVisualizationRows = (table: WorkflowTableData): BudgetRecord[] => {
   const headers = table.headers.map(normalizePivotHeader);
   const teamColumn = headers.findIndex(header => header === 'tim' || header === 'team');
@@ -496,7 +513,8 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
     || [row.period, row.billing, row.ro, row.difference]
       .some(value => String(value).toLowerCase().includes(dashboardSearch))
   );
-  const dashboardStatuses = (dashboard?.statuses || []).filter(row =>
+  const workflowStatusRows = workflowTable ? buildWorkflowStatusRows(workflowTable) : [];
+  const dashboardStatuses = workflowStatusRows.filter(row =>
     !dashboardSearch
     || [row.status, row.count, row.billing]
       .some(value => String(value).toLowerCase().includes(dashboardSearch))
@@ -671,7 +689,15 @@ const WorkbookOverviewCards: React.FC<WorkbookOverviewCardsProps> = ({
                           <td className="text-end text-nowrap">{formatCurrency(row.billing)}</td>
                         </tr>
                       ))}
-                      {dashboardStatuses.length === 0 && <tr><td colSpan={3} className="text-center text-muted">Tidak ada data status yang cocok.</td></tr>}
+                      {dashboardStatuses.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="text-center text-muted">
+                            {workflowTable
+                              ? 'Tidak ada data status yang cocok.'
+                              : 'Impor Database Workflow.xlsx untuk menampilkan status workflow.'}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
